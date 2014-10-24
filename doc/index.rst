@@ -20,6 +20,7 @@ Contents:
    _templates/contribute
    _templates/reports
    _templates/code
+   _templates/reports
 
 
 Indices and tables
