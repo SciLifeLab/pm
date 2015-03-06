@@ -1,6 +1,7 @@
 """ Miscellaneous or general-use methods
 """
 import os
+import psutil
 import subprocess
 import sys
 
@@ -19,9 +20,8 @@ def call_external_command(cl, with_log_files=False):
     stderr = sys.stderr
 
     if with_log_files:
-        time = datetime.now()
-        stdout = open(command + '_{}{}{}.out'.format(time.hour, time.minute, time.second), 'wa')
-        stderr = open(command + '_{}{}{}.err'.format(time.hour, time.minute, time.second), 'wa')
+        stdout = open(command + '.out', 'wa')
+        stderr = open(command + '.err', 'wa')
         started = "Started command {} on {}".format(' '.join(cl), datetime.now())
         stdout.write(started + '\n')
         stdout.write(''.join(['=']*len(cl)) + '\n')
@@ -51,9 +51,8 @@ def call_external_command_detached(cl, with_log_files=False):
     stderr = sys.stderr
 
     if with_log_files:
-        time = datetime.now()
-        stdout = open(command + '_{}{}{}.out'.format(time.hour, time.minute, time.second), 'wa')
-        stderr = open(command + '_{}{}{}.err'.format(time.hour, time.minute, time.second), 'wa')
+        stdout = open(command + '.out', 'wa')
+        stderr = open(command + '.err', 'wa')
         started = "Started command {} on {}".format(' '.join(cl), datetime.now())
         stdout.write(started + '\n')
         stdout.write(''.join(['=']*len(cl)) + '\n')
@@ -68,3 +67,14 @@ def call_external_command_detached(cl, with_log_files=False):
             stdout.close()
             stderr.close()
     return p_handle
+
+
+def exists_process_with_text(text):
+    """Checks wether it exists a process which command line contains <text>
+
+    :param str text: Text to be found in the command line string of the processes
+    """
+    for process in psutil.get_process_list():
+        if text in process.cmdline:
+            return True
+    return False

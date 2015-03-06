@@ -22,10 +22,10 @@ def cli(ctx, config_file):
 	""" Tool for the Automation of Storage and Analyses """
 
 	ctx.obj = {}
-	ctx.obj['config'] = config.load_yaml_config(config_file)
-	log_file = ctx.obj['config'].get('log', {}).get('log_file', None)
+	config = config.load_yaml_config(config_file)
+	log_file = config.get('log', {}).get('log_file', None)
 	if log_file:
-		level = ctx.obj['config'].get('log').get('log_level', 'INFO')
+		level = config.get('log').get('log_level', 'INFO')
 		taca.log.init_logger_file(log_file, level)
 
 

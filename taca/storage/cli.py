@@ -23,7 +23,7 @@ def archive(ctx, backend):
 	"""
 	params = ctx.parent.params
 	if backend == 'swestore':
-		st.archive_to_swestore(ctx.obj['config'], days=params.get('days'), run=params.get('run'))
+		st.archive_to_swestore(days=params.get('days'), run=params.get('run'))
 
 
 @storage.command()
@@ -31,4 +31,4 @@ def archive(ctx, backend):
 def cleanup(ctx):
 	""" Move old runs to nosync directory so they're not synced to the processing server """
 	params = ctx.parent.params
-	st.cleanup(ctx.obj['config'], days=params.get('days'))
+	st.cleanup(days=params.get('days'))

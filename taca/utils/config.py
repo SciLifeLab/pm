@@ -4,6 +4,8 @@ import ConfigParser
 import os
 import yaml
 
+CONFIG = {}
+
 def load_config(config_file=None):
     """Loads a configuration file.
 
@@ -32,7 +34,8 @@ def load_yaml_config(config_file):
     :raises IOError: If the config file cannot be opened.
     """
     if type(config_file) is file:
-        return yaml.load(config_file)
+        CONFIG = yaml.load(config_file)
+        return CONFIG
     else:
         try:
             with open(config_file, 'r') as f:
