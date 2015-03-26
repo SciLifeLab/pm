@@ -8,6 +8,15 @@ from datetime import datetime
 
 from taca.analysis.analysis import *
 
+def processing_status(run_dir):
+    demux_dir = os.path.join(run_dir, 'Demultiplexing')
+    if not os.path.exists(demux_dir):
+        return 'TO_START'
+    elif os.path.exists(os.path.join(demux_dir, 'Stats', 'DemultiplexingStats.xml')):
+        return 'COMPLETED'
+    else:
+        return 'IN_PROGRESS'
+
 class TestTracker(unittest.TestCase):
     """ run_tracker.py script tests
     """

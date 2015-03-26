@@ -48,7 +48,9 @@ This is how the configuration file should look like:
         # Location of samplesheets for demultiplexing
         samplesheets_dir: /path/to/samplesheets/dir
         bcl2fastq:
-            path: /path/to/bcl2fastq
+            XTen: /path/to/bcl2fastq (XTen version)
+            HiSeq: /path/to/bcl2fastq (HiSeq version)
+            MiSeq: /path/to/bcl2fastq (MiSeq version)
             - all command line options of bcl2fastq , i.e runfolder, input-dir, etc.
         sync:
             user: remote_user_analysis_server

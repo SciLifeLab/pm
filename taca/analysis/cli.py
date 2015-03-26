@@ -16,4 +16,4 @@ def analysis():
 def demultiplex(run):
 	""" Demultiplex all runs present in the data directories
 	"""
-	an.run_demultiplexing(run)
+	an.run_preprocessing(run)
