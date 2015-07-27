@@ -1,2 +1,7 @@
 log:
     file: data/taca.log
+
+analysis:
+    bcl2fastq:
+        options:
+            - output-dir: Demultiplexing

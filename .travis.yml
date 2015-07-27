@@ -5,6 +5,7 @@ python:
 
 install:
     - python setup.py install
+    - mkdir ~/.taca && cp tests/data/taca_test_cfg.yaml ~/.taca/taca.yaml
 
 script:
     - cd tests && nosetests -v -s

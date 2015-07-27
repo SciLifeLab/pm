@@ -15,6 +15,9 @@ from taca.utils import filesystem, misc
 
 logger = logging.getLogger(__name__)
 
+# This is used by many of the functions in this module
+finished_run_indicator = CONFIG.get('storage', {}).get('finished_run_indicator',
+                                                   'RTAComplete.txt')
 
 def cleanup_nas(days):
     """Will move the finished runs in NASes to nosync directory.
@@ -25,7 +28,7 @@ def cleanup_nas(days):
         logger.info('Moving old runs in {}'.format(data_dir))
         with filesystem.chdir(data_dir):
             for run in [r for r in os.listdir(data_dir) if re.match(filesystem.RUN_RE, r)]:
-                rta_file = os.path.join(run, 'RTAComplete.txt')
+                rta_file = os.path.join(run, finished_run_indicator)
                 if os.path.exists(rta_file):
                     # 1 day == 60*60*24 seconds --> 86400
                     if os.stat(rta_file).st_mtime < time.time() - (86400 * days):
@@ -33,7 +36,8 @@ def cleanup_nas(days):
                                     .format(os.path.basename(run)))
                         shutil.move(run, 'nosync')
                     else:
-                        logger.info('RTAComplete.txt file exists but is not older than {} day(s), skipping run {}'.format(str(days), run))
+                        logger.info('{} file exists but is not older than {} day(s), skipping run {}'.format(
+                                    finished_run_indicator, str(days), run))
 
 
 def cleanup_processing(days):
@@ -62,7 +66,7 @@ def cleanup_processing(days):
             logger.info('Removing old runs in {}'.format(archive_dir))
             with filesystem.chdir(archive_dir):
                 for run in [r for r in os.listdir(archive_dir) if re.match(filesystem.RUN_RE, r)]:
-                    rta_file = os.path.join(run, 'RTAComplete.txt')
+                    rta_file = os.path.join(run, finished_run_indicator)
                     if os.path.exists(rta_file):
                         # 1 day == 60*60*24 seconds --> 86400
                         if os.stat(rta_file).st_mtime < time.time() - (86400 * days) and \
@@ -71,7 +75,8 @@ def cleanup_processing(days):
                                         .format(os.path.basename(run)))
                             shutil.rmtree(run)
                         else:
-                            logger.info('RTAComplete.txt file exists but is not older than {} day(s), skipping run {}'.format(str(days), run))
+                            logger.info('{} file exists but is not older than {} day(s), skipping run {}'.format(
+                                        finished_run_indicator, str(days), run))
 
     except IOError:
         sbj = "Cannot archive old runs in processing server"
@@ -243,7 +248,7 @@ def _archive_run((run, days, force, compress_only)):
         else:
             logger.info("Run {} is not {} days old yet. Not archiving".format(run, str(days)))
     else:
-        rta_file = os.path.join(run, 'RTAComplete.txt')
+        rta_file = os.path.join(run, finished_run_indicator)
         if not os.path.exists(rta_file) and not force:
             logger.warn(("Run {} doesn't seem to be completed and --force option was "
                       "not enabled, not archiving the run".format(run)))

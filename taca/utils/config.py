@@ -39,7 +39,9 @@ def load_yaml_config(config_file):
     else:
         try:
             with open(config_file, 'r') as f:
-                return yaml.load(f)
+                content = yaml.load(f)
+                CONFIG.update(content)
+                return content
         except IOError as e:
             e.message = "Could not open configuration file \"{}\".".format(config_file)
             raise e

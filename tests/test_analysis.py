@@ -9,6 +9,12 @@ from datetime import datetime
 from taca.analysis.analysis import *
 from taca.illumina import Run
 
+from taca.utils import config
+
+# This is only run if TACA is called from the CLI, as this is a test, we need to
+# call it explicitely
+config.load_yaml_config(os.path.join(os.environ.get('HOME'), '.taca/taca.yaml'))
+
 def processing_status(run_dir):
     demux_dir = os.path.join(run_dir, 'Demultiplexing')
     if not os.path.exists(demux_dir):
