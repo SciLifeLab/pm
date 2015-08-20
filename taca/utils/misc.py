@@ -5,6 +5,7 @@ import os
 import smtplib
 import subprocess
 import sys
+import glob
 
 from datetime import datetime
 from email.mime.text import MIMEText
@@ -27,23 +28,26 @@ def send_mail(subject, content, receiver):
     s.quit()
 
 
-def call_external_command(cl, with_log_files=False, prefix=None):
+def call_external_command(cl, with_log_files=False, prefix=None, log_dir=""):
     """ Executes an external command
 
     :param string cl: Command line to be executed (command + options and parameters)
     :param bool with_log_files: Create log files for stdout and stderr
+    :param string prefix: the prefics to add to log file
+    :param string log_dir: where to write the log file (to avoid problems with rights)
     """
     if type(cl) == str:
         cl = cl.split(' ')
-    command = os.path.basename(cl[0])
+    logFile = os.path.basename(cl[0])
     stdout = sys.stdout
     stderr = sys.stderr
-
     if with_log_files:
         if prefix:
-            command = '{}_{}'.format(prefix, command)
-        stdout = open(command + '.out', 'wa')
-        stderr = open(command + '.err', 'wa')
+            logFile = '{}_{}'.format(prefix, logFile)
+        if os.path.exists(log_dir):
+            logFile = os.path.join(log_dir,  logFile) # otherwise create it in the cwd
+        stdout = open(logFile + '.out', 'wa')
+        stderr = open(logFile + '.err', 'wa')
         started = "Started command {} on {}".format(' '.join(cl), datetime.now())
         stdout.write(started + '\n')
         stdout.write(''.join(['=']*len(cl)) + '\n')
@@ -161,3 +165,29 @@ def query_yes_no(question, default="yes", force=False):
         else:
             sys.stdout.write("Please respond with 'yes' or 'no' "\
                                  "(or 'y' or 'n').\n")
+
+
+
+
+
+def return_unique(seq):
+    seen = set()
+    seen_add = seen.add
+    return [ x for x in seq if not (x in seen or seen_add(x))]
+
+
+def link_undet_to_sample(run, dmux_folder, lane, path_per_lane):
+    """symlinks the undetermined file to the right sample folder with a RELATIVE path so it's carried over by rsync
+    
+    :param run: path of the flowcell
+    :type run: str
+    :param lane: lane identifier
+    :type lane: int
+    :param path_per_lane: {lane:path/to/the/sample}
+    :type path_per_lane: dict"""
+    for fastqfile in glob.glob(os.path.join(run, dmux_folder, '*Undetermined*_L0?{}_*'.format(lane))):
+        if not os.path.exists(os.path.join(path_per_lane[lane], os.path.basename(fastqfile))):
+            fqbname=os.path.basename(fastqfile)
+            os.symlink(os.path.join('..','..',fqbname), os.path.join(path_per_lane[lane], os.path.basename(fastqfile)))
+
+

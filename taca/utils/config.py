@@ -9,11 +9,11 @@ CONFIG = {}
 def load_config(config_file=None):
     """Loads a configuration file.
 
-    By default it assumes ~/.taca/taca.conf
+    By default it assumes ~/.taca/taca.yaml
     """
     try:
         if not config_file:
-            config_file = os.path.join(os.environ.get('HOME'), '.taca', 'taca.conf')
+            config_file = os.path.join(os.environ.get('HOME'), '.taca', 'taca.yaml')
         config = ConfigParser.SafeConfigParser()
         with open(config_file) as f:
             config.readfp(f)
@@ -39,7 +39,9 @@ def load_yaml_config(config_file):
     else:
         try:
             with open(config_file, 'r') as f:
-                return yaml.load(f)
+                content = yaml.load(f)
+                CONFIG.update(content)
+                return content
         except IOError as e:
             e.message = "Could not open configuration file \"{}\".".format(config_file)
             raise e

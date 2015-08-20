@@ -6,3 +6,4 @@ _build
 *.log
 .DS*
 .vagrant/
+tmp

@@ -7,7 +7,7 @@ import taca.utils.bioinfo_tab as bt
 
 @click.group()
 def bioinfo_deliveries():
-	""" Analysis methods entry point """
+	""" Update statusdb with information about FC entry point """
 	pass
 
 # bioinfo subcommands

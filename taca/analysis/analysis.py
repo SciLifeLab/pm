@@ -4,319 +4,214 @@ import glob
 import logging
 import os
 import re
-import subprocess
-import taca.utils.undetermined as ud
-import flowcell_parser.db as fcpdb
 
-from datetime import datetime
 
-import requests
-
-from taca.illumina import Run
-from taca.utils.filesystem import chdir, control_fastq_filename
+from taca.illumina.Runs import Run
+from taca.illumina.HiSeqX_Runs import HiSeqX_Run
+from taca.illumina.HiSeq_Runs import HiSeq_Run
 from taca.utils.config import CONFIG
-from taca.utils import misc
-from flowcell_parser.classes import XTenRunParametersParser,XTenSampleSheetParser,XTenParser 
+
+import flowcell_parser.db as fcpdb
+from   flowcell_parser.classes import RunParametersParser
 
 logger = logging.getLogger(__name__)
 
 
-def is_transferred(run, transfer_file):
-    """ Checks wether a run has been transferred to the analysis server or not.
-        Returns true in the case in which the tranfer is ongoing.
 
-    :param str run: Run directory
-    :param str transfer_file: Path to file with information about transferred runs
+
+
+
+
+def _run_type(run):
     """
-    try:
-        with open(transfer_file, 'r') as file_handle:
-            t_f = csv.reader(file_handle, delimiter='\t')
-            for row in t_f:
-                #Rows have two columns: run and transfer date
-                if row[0] == os.path.basename(run):
-                    return True
-        if os.path.exists(os.path.join(run, 'transferring')):
-            return True
-        return False
-    except IOError:
-        return False
-
-
-def transfer_run(run, analysis=True):
-    """ Transfer a run to the analysis server. Will add group R/W permissions to
-    the run directory in the destination server so that the run can be processed
-    by any user/account in that group (i.e a functional account...). Run will be
-    moved to data_dir/nosync after transferred.
-
-    :param str run: Run directory
-    :param bool analysis: Trigger analysis on remote server
+        Tries to read runParameters.xml and returns the run type.
     """
-    command_line = ['rsync', '-av']
-    # Add R/W permissions to the group
-    command_line.append('--chmod=g+rw')
-    # rsync works in a really funny way, if you don't understand this, refer to
-    # this note: http://silentorbit.com/notes/2013/08/rsync-by-extension/
-    command_line.append("--include=*/")
-    for to_include in CONFIG['analysis']['analysis_server']['sync']['include']:
-        command_line.append("--include={}".format(to_include))
-    command_line.extend(["--exclude=*", "--prune-empty-dirs"])
-    r_user = CONFIG['analysis']['analysis_server']['user']
-    r_host = CONFIG['analysis']['analysis_server']['host']
-    r_dir = CONFIG['analysis']['analysis_server']['sync']['data_archive']
-    remote = "{}@{}:{}".format(r_user, r_host, r_dir)
-    command_line.extend([run, remote])
-
-    # Create temp file indicating that the run is being transferred
-    try:
-        open(os.path.join(run, 'transferring'), 'w').close()
-    except IOError as e:
-        logger.error("Cannot create a file in {}. Check the run name, and the permissions.".format(run))
-        raise e
-    started = ("Started transfer of run {} on {}"
-               .format(os.path.basename(run), datetime.now()))
-    logger.info(started)
-    # In this particular case we want to capture the exception because we want
-    # to delete the transfer file
-    try:
-        misc.call_external_command(command_line, with_log_files=True)
-    except subprocess.CalledProcessError as exception:
-        os.remove(os.path.join(run, 'transferring'))
-        raise exception
-
-    t_file = os.path.join(CONFIG['analysis']['status_dir'], 'transfer.tsv')
-    logger.info('Adding run {} to {}'
-                .format(os.path.basename(run), t_file))
-    with open(t_file, 'a') as tranfer_file:
-        tsv_writer = csv.writer(tranfer_file, delimiter='\t')
-        tsv_writer.writerow([os.path.basename(run), str(datetime.now())])
-    os.remove(os.path.join(run, 'transferring'))
-
-    #Now, let's move the run to nosync
-    archive_run(run)
-
-    if analysis:
-        trigger_analysis(run)
-
-def archive_run(run):
-    
     rppath=os.path.join(run, 'runParameters.xml')
     try:
-        rp=XTenRunParametersParser(os.path.join(run, 'runParameters.xml'))
+        rp=RunParametersParser(os.path.join(run, 'runParameters.xml'))
     except OSError:
         logger.warn("Cannot find the runParameters.xml file at {}. This is quite unexpected. please archive the run {} manually".format(rppath, run))
     else:
         try:
             #Works for recent control software
-            runtype=rp.data["Setup"].get("Application Name")
+            runtype=rp.data['RunParameters']["Setup"].get("ApplicationName")
         except KeyError :
             #should work for ancient control software
             runtype=rp.data.get("Application Name")
-
+        
         if "HiSeq X" in runtype:
-            destination=CONFIG['storage']['archive_dir']['HiSeqX']
+            return 'HiSeqX'
         elif "MiSeq" in runtype:
-            destination=CONFIG['storage']['archive_dir']['MiSeq']
+            return 'MiSeq'
         elif "HiSeq" in runtype:
-            destination=CONFIG['storage']['archive_dir']['HiSeq']
+            return 'HiSeq'
         else:
-            logger.warn("unrecognized runtype {}, cannot archive the run {}.".format(runtype, run)) 
-            destination=None
-
-        if destination:
-            logger.info('archiving run {}'.format(run))
-            os.move(os.path.abspath(run), os.path.join(destination, os.path.basename(os.path.abspath(run))))
-
-def trigger_analysis(run_id):
-    """ Trigger the analysis of the flowcell in the analysis sever.
-
-    :param str run_id: run/flowcell id
-    """
-    if not CONFIG.get('analysis', {}).get('analysis_server', {}):
-        logger.warn(("No configuration found for remote analysis server. "
-                     "Not triggering analysis of {}"
-                     .format(os.path.basename(run_id))))
-    else:
-        url = ("http://{host}:{port}/flowcell_analysis/{dir}"
-               .format(host=CONFIG['analysis']['analysis_server']['host'],
-                       port=CONFIG['analysis']['analysis_server']['port'],
-                       dir=os.path.basename(run_id)))
-        params = {'path': CONFIG['analysis']['analysis_server']['sync']['data_archive']}
-        try:
-            r = requests.get(url, params=params)
-            if r.status_code != requests.status_codes.codes.OK:
-                logger.warn(("Something went wrong when triggering the "
-                             "analysis of {}. Please check the logfile "
-                             "and make sure to start the analysis!"
-                             .format(os.path.basename(run_id))))
-            else:
-                logger.info('Analysis of flowcell {} triggered in {}'
-                            .format(os.path.basename(run_id),
-                                    CONFIG['analysis']['analysis_server']['host']))
-                a_file = os.path.join(CONFIG['analysis']['status_dir'], 'analysis.tsv')
-                with open(a_file, 'a') as analysis_file:
-                    tsv_writer = csv.writer(analysis_file, delimiter='\t')
-                    tsv_writer.writerow([os.path.basename(run_id), str(datetime.now())])
-        except requests.exceptions.ConnectionError:
-            logger.warn(("Something went wrong when triggering the analysis "
-                         "of {}. Please check the logfile and make sure to "
-                         "start the analysis!".format(os.path.basename(run_id))))
-
-
-def prepare_sample_sheet(run):
-    """ This is a temporary function in order to solve the current problem with LIMS system
-        not able to generate a compatible samplesheet for HiSeqX. This function needs to massage
-        the sample sheet created by GenoLogics in order to correctly demultiplex HiSeqX runs.
-        This function returns with success if the samplesheet is in the correct place, otherwise
-        this flowcell will not be processed.
-
-        :param str run: Run directory
-    """
-    #start by checking if samplesheet is in the correct place
-    run_name = os.path.basename(run)
-    current_year = '20' + run_name[0:2]
-    samplesheets_dir = os.path.join(CONFIG['analysis']['samplesheets_dir'],
-                                    current_year)
-
-    run_name_componets = run_name.split("_")
-    FCID = run_name_componets[3][1:]
-
-    FCID_samplesheet_origin = os.path.join(samplesheets_dir, FCID + '.csv')
-    FCID_samplesheet_dest   = os.path.join(run, "SampleSheet.csv")
-
-    ss_reader=XTenSampleSheetParser(FCID_samplesheet_origin)
-    #check that the samplesheet is not already present
-    if os.path.exists(FCID_samplesheet_dest):
-        logger.warn(("When trying to generate SampleSheet.csv for sample "
-                     "sheet {}  looks like that SampleSheet.csv was already "
-                     "present in {} !!".format(FCID, FCID_samplesheet_dest)))
-        return False
-    try:
-        with open(FCID_samplesheet_dest, 'wb') as fcd:
-            fcd.write(ss_reader.generate_clean_samplesheet(fields_to_remove=['index2'], rename_samples=True))
-    except Exception as e:
-        logger.error(e.text)
-        return False
-
-
-    # everything ended correctly
-    return True
+            logger.warn("unrecognized runtype {}, cannot archive the run {}. Someone as likely bought a new sequencer without telling it to the bioinfo team".format(runtype, run))
 
 
 
-def post_qc(run, qc_file, status):
-    """ Checks wether a run has passed the final qc.
 
-    :param str run: Run directory
-    :param str qc_file: Path to file with information about transferred runs
-    """
-    already_seen=False
-    runname=os.path.basename(os.path.abspath(run))
-    shortrun=runname.split('_')[0] + '_' +runname.split('_')[-1]
-    with open(qc_file, 'ab+') as f:
-        f.seek(0)
-        for row in f:
-            #Rows have two columns: run and transfer date
-            if row.split('\t')[0] == runname: 
-                already_seen=True
-
-        if not already_seen:
-            if status:
-                f.write("{}\tPASSED\n".format(runname))
-            else:
-                sj="{} failed QC".format(runname)
-                cnt="""The run {run} has failed qc and will NOT be transfered to Nestor.
-
-                       The run might be available at : https://genomics-status.scilifelab.se/flowcells/{shortfc}
-                       
-                       To read the logs, run the following command on {server} 
-                       grep -A30 "Checking run {run}" {log}
-                       
-                       To force the transfer : 
-                        taca analysis transfer {rundir} """.format(run=runname, shortfc=shortrun, log=CONFIG['log']['file'], server=os.uname()[1], rundir=run)
-                rcp=CONFIG['mail']['recipients']
-                misc.send_mail(sj, cnt, rcp)
-                f.write("{}\tFAILED\n".format(os.path.basename(run)))
 
 def upload_to_statusdb(run_dir):
     """
+        interface for click
+    """
+    sequencer_type = _run_type(run_dir)
+    if sequencer_type is 'HiSeqX':
+        runObj = HiSeqX_Run(run_dir, CONFIG["analysis"]["HiSeqX"])
+    elif sequencer_type is 'HiSeq':
+        print "not yet implemented: HiSeq"
+        return
+    elif sequencer_type is 'MiSeq':
+        print "not yet implemented: miseq"
+        return
+    _upload_to_statusdb(runObj)
+
+
+def _upload_to_statusdb(run):
+    """
     Triggers the upload to statusdb using the dependency flowcell_parser
-    
-     :param string run_dir: the run directory to upload
+    :param Run run: the object run
     """
     couch = fcpdb.setupServer(CONFIG)
-    db=couch[CONFIG['statusdb']['xten_db']]
-    parser=XTenParser(run_dir)
-    fcpdb.update_doc(db,parser.obj)
+    db    = couch[CONFIG['statusdb']['xten_db']]
+    parser = run.runParserObj
+    fcpdb.update_doc( db , parser.obj)
 
-def run_preprocessing(run):
+
+def transfer_run(run_dir, analysis):
+    """
+    interface for click
+    :param: string run_dir: the run to tranfer
+    :param bool analysis: if trigger or not the analysis
+    """
+    sequencer_type = _run_type(run_dir)
+    if sequencer_type is 'HiSeqX':
+        runObj = HiSeqX_Run(run_dir, CONFIG["analysis"]["HiSeqX"])
+    elif sequencer_type is 'HiSeq':
+        print "not yet implemented: HiSeq"
+        return
+    elif sequencer_type is 'MiSeq':
+        print "not yet implemented: miseq"
+        return
+    _transfer_run(runObj, analysis)
+
+
+def _transfer_run(run, analysis):
+    """
+    Tranfer the run to the HPC unit
+    :param Run run: the object run
+    :param bool analysis: if trigger or not the analysis
+    """
+    run.transfer_run("nosync", os.path.join(CONFIG['analysis']['status_dir'], 'transfer.tsv'),
+                       analysis) #do not start analsysis automatically if I force the tranfer
+
+
+
+def run_preprocessing(run, force_trasfer=True):
     """Run demultiplexing in all data directories
 
     :param str run: Process a particular run instead of looking for runs
     """
 
-    def _process(run):
+    def _process(run, force_trasfer):
         """Process a run/flowcell and transfer to analysis server
 
         :param taca.illumina.Run run: Run to be processed and transferred
         """
+        if run is None:
+            #this is in case the methods are not yet implemented
+            return
         logger.info('Checking run {}'.format(run.id))
-        if run.is_finished():
-            if  run.status == 'TO_START':
-                logger.info(("Starting BCL to FASTQ conversion and "
-                             "demultiplexing for run {}".format(run.id)))
-                # work around LIMS problem
-                if prepare_sample_sheet(run.run_dir):
-                    run.demultiplex()
-            elif run.status == 'IN_PROGRESS':
-                logger.info(("BCL conversion and demultiplexing process in "
-                             "progress for run {}, skipping it"
-                             .format(run.id)))
-                ud.check_undetermined_status(run.run_dir, dex_status=run.status, und_tresh=CONFIG['analysis']['undetermined']['lane_treshold'],
-                    q30_tresh=CONFIG['analysis']['undetermined']['q30_treshold'], freq_tresh=CONFIG['analysis']['undetermined']['highest_freq'],
-                    pooled_tresh=CONFIG['analysis']['undetermined']['pooled_und_treshold'])
-            elif run.status == 'COMPLETED':
-                logger.info(("Preprocessing of run {} is finished, check if "
-                             "run has been transferred and transfer it "
-                             "otherwise".format(run.id)))
-
-                control_fastq_filename(os.path.join(run.run_dir, CONFIG['analysis']['bcl2fastq']['options'][0]['output-dir']))
-                passed_qc=ud.check_undetermined_status(run.run_dir, dex_status=run.status, und_tresh=CONFIG['analysis']['undetermined']['lane_treshold'],
-                    q30_tresh=CONFIG['analysis']['undetermined']['q30_treshold'], freq_tresh=CONFIG['analysis']['undetermined']['highest_freq'],
-                    pooled_tresh=CONFIG['analysis']['undetermined']['pooled_und_treshold'])
-                qc_file = os.path.join(CONFIG['analysis']['status_dir'], 'qc.tsv')
-
-                post_qc(run.run_dir, qc_file, passed_qc)
-                upload_to_statusdb(run.run_dir)
-
-                t_file = os.path.join(CONFIG['analysis']['status_dir'], 'transfer.tsv')
-                transferred = is_transferred(run.run_dir, t_file)
-                if passed_qc:
-                    if not transferred:
-                        logger.info("Run {} hasn't been transferred yet."
-                                    .format(run.id))
-                        logger.info('Transferring run {} to {} into {}'
-                                    .format(run.id,
-                            CONFIG['analysis']['analysis_server']['host'],
-                            CONFIG['analysis']['analysis_server']['sync']['data_archive']))
-                        transfer_run(run.run_dir)
-                    else:
-                        logger.info('Run {} already transferred to analysis server, skipping it'.format(run.id))
-                else:
-                    logger.warn('Run {} failed qc, transferring will not take place'.format(run.id))
-                    r_file = os.path.join(CONFIG['analysis']['status_dir'], 'report.out')
-
-
-
-        if not run.is_finished():
+        if run.get_run_status() == 'SEQUENCING':
             # Check status files and say i.e Run in second read, maybe something
             # even more specific like cycle or something
             logger.info('Run {} is not finished yet'.format(run.id))
+        elif  run.get_run_status() == 'TO_START':
+            logger.info(("Starting BCL to FASTQ conversion and "
+                             "demultiplexing for run {}".format(run.id)))
+            run.demultiplex_run()
+
+        elif run.get_run_status() == 'IN_PROGRESS':
+            logger.info(("BCL conversion and demultiplexing process in "
+                             "progress for run {}, skipping it"
+                             .format(run.id)))
+            #in the case of Xten retruns, in future have a look to Cycles.txt
+            #in the case of HiSeq check that partial demux are done and performs aggregation if this is the case
+            run.check_run_status()
+
+        # previous elif might change the status to COMPLETED (in HiSeq), therefore to avoid skip
+        # a cicle take the last if out of the elif
+        t_file = os.path.join(CONFIG['analysis']['status_dir'], 'transfer.tsv')
+        if run.get_run_status() == 'COMPLETED' and not run.is_transferred(t_file):
+            logger.info(("Preprocessing of run {} is finished, check if "
+                             "run has been transferred and transfer it "
+                             "otherwise".format(run.id)))
+            #in the case of of HiSeq this function computes undetermined indexes for NoIndex lanes
+            if not run.compute_undetermined():
+                return
+            
+            #otherwise I can procced to QC
+            #check the run QC
+            run_QC_status = run.check_QC()
+            #store QC results in appropriate file and mail user if failed
+            qc_file = os.path.join(CONFIG['analysis']['status_dir'], 'qc.tsv')
+            #this method is implemented in Runs
+            run.post_qc(qc_file, run_QC_status, log_file=CONFIG['log']['file'], rcp=CONFIG['mail']['recipients'])
+            #upload to statusDB
+            _upload_to_statusdb(run)
+            #if QC is ok tranfer the run in th appropriate server
+            if run_QC_status or force_trasfer: #runs is not tranfer only it force_tranfer is False and QC_status false
+                #tranfer the run, specify desitnation and if analysis needs to be started on the server
+                logger.info("Run {} hasn't been transferred yet."
+                                .format(run.id))
+                logger.info('Transferring run {} to {} into {}'
+                                    .format(run.id,
+                                            run.CONFIG['analysis_server']['host'],
+                                            run.CONFIG['analysis_server']['sync']['data_archive']))
+                run.transfer_run(CONFIG['storage']['archive_dirs'][run.sequencer_type], t_file,  False) #do not trigger analysis
+            else:
+                logger.warn('Run {} failed qc, transferring will not take place'.format(run.id))
+        elif run.is_transferred(t_file):
+            logger.info('Run {} already transferred to analysis server, skipping it'.format(run.id))
+
+
 
     if run:
-        _process(Run(run))
+        #needs to guess what run type I have (HiSeq, MiSeq, HiSeqX)
+        sequencer_type = _run_type(run)
+        if sequencer_type is 'HiSeqX':
+            runObj = HiSeqX_Run(run, CONFIG["analysis"]["HiSeqX"])
+        elif sequencer_type is 'HiSeq':
+            runObj = HiSeq_Run(run, CONFIG["analysis"]["HiSeq"])
+        elif sequencer_type is 'MiSeq':
+            print "miseq: to be implemented soon"
+            runObj = None
+        else:
+            raise RuntimeError("New instrument type {}".format(sequencer_type))
+        _process(runObj, force_trasfer)
     else:
         data_dirs = CONFIG.get('analysis').get('data_dirs')
         for data_dir in data_dirs:
             runs = glob.glob(os.path.join(data_dir, '1*XX'))
+            # Try MiSeq runs as well
+            if not runs:
+                runs = glob.glob(os.path.join(data_dir, '1*000000000*'))
             for _run in runs:
-                _process(Run(_run))
+                sequencer_type = _run_type(_run)
+                if sequencer_type is 'HiSeqX':
+                    runObj = HiSeqX_Run(_run, CONFIG["analysis"]["HiSeqX"])
+                elif sequencer_type is 'HiSeq':
+                    runObj = HiSeq_Run(_run, CONFIG["analysis"]["HiSeq"])
+                elif sequencer_type is 'MiSeq':
+                    print "MiSeq: to be implemented soon"
+                    runObj = None
+                    #runObj = HiSeq_Run(_run, CONFIG["analysis"]["MiSeq"])
+                else:
+                    raise RuntimeError("New instrument type {}".format(sequencer_type))
+                _process(runObj, force_trasfer)
+
+
+
+
+
