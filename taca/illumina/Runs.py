@@ -38,29 +38,29 @@ class Run(object):
         self.flowcell_id = m.group(4)
         self.CONFIG      = configuration
         self._set_demux_folder(configuration)
-        self.runParserObj = RunParser(self.run_dir)
+        self.runParserObj = RunParser(self.run_dir, self.CONFIG)
 
 
     def demultiplex_run():
         raise NotImplementedError("Please Implement this method")
-    
+
     def check_run_status():
         raise NotImplementedError("Please Implement this method")
-    
-    
+
+
     def post_demux(self):
         raise NotImplementedError("Please Implement this method")
 
-    
+
     def check_QC(self):
         raise NotImplementedError("Please Implement this method")
 
-    
+
 
     def _set_sequencer_type(self, configuration):
         raise NotImplementedError("Please Implement this method")
-    
-    
+
+
     def _get_sequencer_type(self):
         if self.sequencer_type:
             return self.sequencer_type
@@ -139,7 +139,7 @@ class Run(object):
         Hypotesis:
             - RunInfo.xml contains the configuration
             - this object contains a properly parsed samplesheet
-            
+
         It returns an dict with a key for each lane:
         {lane1:
             {base_mask_string (e.g., Y150I6N2N8Y150):
@@ -150,14 +150,14 @@ class Run(object):
             }
          lane2:
         }
-            
+
         """
         #generate new ssparser (from the renamed smaplesheet)
         runSetup = self.runParserObj.runinfo.get_read_configuration()
         base_masks = {}
         if not self.runParserObj.samplesheet:
             raise RuntimeError("samplesheet not yet initialised")
-        
+
         for data_entry in self.runParserObj.samplesheet.data:
             ## for each data_entry in my samplesheet (i.e., for each sample)
             lane  = data_entry['Lane']
@@ -243,7 +243,7 @@ class Run(object):
             the run directory in the destination server so that the run can be processed
             by any user/account in that group (i.e a functional account...). Run will be
             moved to data_dir/nosync after transferred.
-        
+
             :param str run: Run directory
             :param bool analysis: Trigger analysis on remote server
         """
@@ -287,7 +287,7 @@ class Run(object):
 
         #Now, let's move the run to nosync
         self.archive_run(destination)
-    
+
         if analysis:
             #This needs to pass the runtype (i.e., Xten or HiSeq) and start the correct pipeline
             self.trigger_analysis()
@@ -301,7 +301,7 @@ class Run(object):
 
     def trigger_analysis(self):
         """ Trigger the analysis of the flowcell in the analysis sever.
-        
+
             :param str run_id: run/flowcell id
         """
         if not self.CONFIG.get('analysis_server', {}):
@@ -353,19 +353,19 @@ class Run(object):
                 #Rows have two columns: run and transfer date
                 if row.split('\t')[0] == runname:
                     already_seen=True
-    
+
             if not already_seen:
                 if status:
                     f.write("{}\tPASSED\n".format(runname))
                 else:
                     sj="{} failed QC".format(runname)
                     cnt="""The run {run} has failed qc and will NOT be transfered to Nestor.
-                    
+
                         The run might be available at : https://genomics-status.scilifelab.se/flowcells/{shortfc}
-                    
+
                         To read the logs, run the following command on {server}
                         grep -A30 "Checking run {run}" {log}
-                    
+
                         To force the transfer :
                         taca analysis transfer {rundir} """.format(run=runname, shortfc=shortrun, log=log_file, server=os.uname()[1], rundir=self.id)
                     misc.send_mail(sj, cnt, rcp)
@@ -375,7 +375,7 @@ class Run(object):
     def is_transferred(self, transfer_file):
         """ Checks wether a run has been transferred to the analysis server or not.
         Returns true in the case in which the tranfer is ongoing.
-        
+
         :param str run: Run directory
         :param str transfer_file: Path to file with information about transferred runs
         """
@@ -401,13 +401,13 @@ class Run(object):
         :type lane: string
         :param minimum_yield: minimum yield as specified by documentation
         :type minimum_yield: float
-        
+
         :rtype: boolean
         :returns: True if the lane has an yield above the specified minimum
         """
         if not self.runParserObj.lanes:
             logger.error("Something wrong in lane_check_yield, lanes not available, called to early....")
-        
+
         for entry in self.runParserObj.lanes.sample_data:
             if lane == entry['Lane']:
                 lane_clusters = int(entry['PF Clusters'].replace(',',''))
@@ -422,13 +422,13 @@ class Run(object):
         :type lane: string
         :param q30_tresh: Q30 threshold
         :type q30_tresh: float
-            
+
         :rtype: boolean
         :returns: True if the lane has a Q30 above the specified minimum
         """
         if not self.runParserObj.lanes:
             logger.error("Something wrong in lane_check_Q30, lanes not available, called to early....")
-        
+
         for entry in self.runParserObj.lanes.sample_data:
             if lane == entry['Lane']:
                 if float(entry['% >= Q30bases']) >= q30_tresh:
