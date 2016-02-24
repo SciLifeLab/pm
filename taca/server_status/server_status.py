@@ -15,10 +15,8 @@ def get_nases_disk_space():
 	for server_url in servers.keys():
 		# get path of disk
 		path = servers[server_url]
-
 		# get command
 		command = "{command} {path}".format(command=config['command'], path=path)
-
 		# if localhost, don't connect to ssh
 		if server_url == "localhost":
 			proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -36,7 +34,7 @@ def _parse_output(output): # for nases
 	# command = df -h /home
 	# output = Filesystem            Size  Used Avail Use% Mounted on
 	# /dev/mapper/VGStor-lv_illumina
-    #                   24T   12T   13T  49% /srv/illumina
+	#                   24T   12T   13T  49% /srv/illumina
 
 	output = output.strip()
 	output = output.split()
@@ -47,9 +45,7 @@ def _parse_output(output): # for nases
 		space_used = output[-4]
 		disk_size = output[-5]
 		filesystem = output[-6]
-
 		available_percentage = str(100 - int(used_percentage.replace('%',''))) + '%'
-
 		result = {
 			'disk_size': disk_size,
 			'space_used': space_used,
@@ -78,26 +74,23 @@ def update_google_docs(data, credentials_file):
 	config = CONFIG['server_status']
 	# open json file
 	json_key = json.load(open(credentials_file))
-
 	# get credentials from the file and authorize
 	credentials = GCredentials(json_key['client_email'], json_key['private_key'], config['g_scope'])
 	gc = gspread.authorize(credentials)
 	# open google sheet
 	# IMPORTANT: file must be shared with the email listed in credentials
 	sheet = gc.open(config['g_sheet'])
-
 	# choose worksheet from the doc
 	worksheet = sheet.get_worksheet(1)
-
 	# update cell
 	for key in data: # data is a dicitonary of dictionaries
 		cell = config['g_sheet_map'].get(key) # key = server name
 		value = data[key].get('available_percentage')
 		worksheet.update_acell(cell, value)
-
-
+		
 def update_status_db(data):
-	"""Pushed the data to status db,
+	"""
+	Pushed the data to status db,
 	data can be from nases or from uppmax
 	"""
 	db_config = CONFIG.get('statusdb')
@@ -131,7 +124,6 @@ def update_status_db(data):
 		else:
 			logging.info('{}: Server status has been updated'.format(key))
 
-
 def get_uppmax_quotas():
 	current_time = datetime.datetime.now()
 	try:
@@ -161,8 +153,6 @@ def get_uppmax_quotas():
 		result[project[0]] = project_dict
 	return result
 
-
-
 def get_uppmax_cpu_hours():
 	current_time = datetime.datetime.now()
 	try:
@@ -171,23 +161,19 @@ def get_uppmax_cpu_hours():
 	except Exception, e:
 		logging.error(e.message)
 		raise
-
 	# output is lines with the format: project_id  cpu_usage  cpu_limit
 	output = uq.communicate()[0]
-
 	logging.info("CPU Hours Usage:")
 	logging.info(output)
 	result = {}
 	# parsing output
 	for proj in output.strip().split('\n'):
 		project_dict = {"time": current_time.isoformat()}
-
 		# split line into a list
 		project = proj.split()
 		# creating objects
 		project_dict["project"] = project[0]
 		project_dict["cpu hours"] = project[1]
 		project_dict["cpu limit"] = project[2]
-
 		result[project[0]] = project_dict
 	return result

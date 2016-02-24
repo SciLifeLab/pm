@@ -5,10 +5,8 @@ import logging
 import re
 import shutil
 import time
-
 from datetime import datetime
 from multiprocessing import Pool
-
 from statusdb.db import connections as statusdb
 from taca.utils.config import CONFIG
 from taca.utils import filesystem, misc
@@ -16,12 +14,10 @@ from taca.utils import filesystem, misc
 logger = logging.getLogger(__name__)
 
 # This is used by many of the functions in this module
-finished_run_indicator = CONFIG.get('storage', {}).get('finished_run_indicator',
-                                                   'RTAComplete.txt')
-
+finished_run_indicator = CONFIG.get('storage', {}).get('finished_run_indicator','RTAComplete.txt')
 def cleanup_nas(days):
-    """Will move the finished runs in NASes to nosync directory.
-
+    """
+    Will move the finished runs in NASes to nosync directory.
     :param int days: Number of days to consider a run to be old
     """
     for data_dir in CONFIG.get('storage').get('data_dirs'):
@@ -32,36 +28,33 @@ def cleanup_nas(days):
                 if os.path.exists(rta_file):
                     # 1 day == 60*60*24 seconds --> 86400
                     if os.stat(rta_file).st_mtime < time.time() - (86400 * days):
-                        logger.info('Moving run {} to nosync directory'
-                                    .format(os.path.basename(run)))
+                        logger.info('Moving run {} to nosync directory'.format(os.path.basename(run)))
                         shutil.move(run, 'nosync')
                     else:
                         logger.info('{} file exists but is not older than {} day(s), skipping run {}'.format(
                                     finished_run_indicator, str(days), run))
 
-
 def cleanup_processing(days):
-    """Cleanup runs in processing server.
-
+    """
+    Cleanup runs in processing server.
     :param int days: Number of days to consider a run to be old
     """
     transfer_file = os.path.join(CONFIG.get('preprocessing', {}).get('status_dir'), 'transfer.tsv')
     if not days:
         days = CONFIG.get('cleanup', {}).get('processing-server', {}).get('days', 10)
     try:
-        #Move finished runs to nosync
+        # Move finished runs to nosync
         for data_dir in CONFIG.get('storage').get('data_dirs'):
             logger.info('Moving old runs in {}'.format(data_dir))
             with filesystem.chdir(data_dir):
                 for run in [r for r in os.listdir(data_dir) if re.match(filesystem.RUN_RE, r)]:
                     if filesystem.is_in_file(transfer_file, run):
-                        logger.info('Moving run {} to nosync directory'
-                                    .format(os.path.basename(run)))
+                        logger.info('Moving run {} to nosync directory'.format(os.path.basename(run)))
                         shutil.move(run, 'nosync')
                     else:
                         logger.info(("Run {} has not been transferred to the analysis "
                             "server yet, not archiving".format(run)))
-        #Remove old runs from archiving dirs
+        # Remove old runs from archiving dirs
         for archive_dir in CONFIG.get('storage').get('archive_dirs').values():
             logger.info('Removing old runs in {}'.format(archive_dir))
             with filesystem.chdir(archive_dir):
@@ -71,27 +64,23 @@ def cleanup_processing(days):
                         # 1 day == 60*60*24 seconds --> 86400
                         if os.stat(rta_file).st_mtime < time.time() - (86400 * days) and \
                                 filesystem.is_in_swestore("{}.tar.bz2".format(run)):
-                            logger.info('Removing run {} to nosync directory'
-                                        .format(os.path.basename(run)))
+                            logger.info('Removing run {} to nosync directory'.format(os.path.basename(run)))
                             shutil.rmtree(run)
                         else:
                             logger.info('{} file exists but is not older than {} day(s), skipping run {}'.format(
                                         finished_run_indicator, str(days), run))
-
     except IOError:
         sbj = "Cannot archive old runs in processing server"
-        msg = ("Could not find transfer.tsv file, so I cannot decide if I should "
-               "archive any run or not.")
+        msg = ("Could not find transfer.tsv file, so I cannot decide if I should archive any run or not.")
         cnt = CONFIG.get('contact', None)
         if not cnt:
             cnt = "{}@localhost".format(getpass.getuser())
         logger.error(msg)
         misc.send_mail(sbj, msg, cnt)
 
-
 def archive_to_swestore(days, run=None, max_runs=None, force=False, compress_only=False):
-    """Send runs (as archives) in NAS nosync to swestore for backup
-
+    """
+    Send runs (as archives) in NAS nosync to swestore for backup
     :param int days: number fo days to check threshold
     :param str run: specific run to send swestore
     :param int max_runs: number of runs to be processed simultaneously
@@ -135,10 +124,9 @@ def archive_to_swestore(days, run=None, max_runs=None, force=False, compress_onl
                 else:
                     logger.info('No old runs to be archived')
 
-
 def cleanup_swestore(days, dry_run=False):
-    """Remove archived runs from swestore
-
+    """
+    Remove archived runs from swestore
     :param int days: Threshold days to check and remove
     """
     days = check_days('swestore', days, config)
@@ -154,9 +142,9 @@ def cleanup_swestore(days, dry_run=False):
             misc.call_external_command('irm -f {}'.format(run))
             logger.info('Removed file {} from swestore'.format(run))
 
-
 def cleanup_uppmax(site, days, dry_run=False):
-    """Remove project/run that have been closed more than 'days'
+    """
+    Remove project/run that have been closed more than 'days'
     from the given 'site' on uppmax
 
     :param str site: site where the cleanup should be performed
@@ -167,7 +155,8 @@ def cleanup_uppmax(site, days, dry_run=False):
         return
     root_dir = CONFIG.get('cleanup').get(site).get('root')
     deleted_log = CONFIG.get('cleanup').get('deleted_log')
-    assert os.path.exists(os.path.join(root_dir,deleted_log)), "Log directory {} doesn't exist in {}".format(deleted_log,root_dir)
+    assert os.path.exists(os.path.join(root_dir,deleted_log)), 
+    "Log directory {} doesn't exist in {}".format(deleted_log,root_dir)
     log_file = os.path.join(root_dir,"{fl}/{fl}.log".format(fl=deleted_log))
 
     # make a connection for project db #
@@ -175,11 +164,11 @@ def cleanup_uppmax(site, days, dry_run=False):
     assert pcon, "Could not connect to project database in StatusDB"
 
     if site != "archive":
-        ## work flow for cleaning up illumina/analysis ##
+        # work flow for cleaning up illumina/analysis ##
         projects = [ p for p in os.listdir(root_dir) if re.match(filesystem.PROJECT_RE,p) ]
         list_to_delete = get_closed_projects(projects, pcon, days)
     else:
-        ##work flow for cleaning archive ##
+        # work flow for cleaning archive ##
         list_to_delete = []
         archived_in_swestore = filesystem.list_runs_in_swestore(path=CONFIG.get('cleanup').get('swestore').get('root'), no_ext=True)
         runs = [ r for r in os.listdir(root_dir) if re.match(filesystem.RUN_RE,r) ]
@@ -213,8 +202,8 @@ def cleanup_uppmax(site, days, dry_run=False):
 # Class helper methods, not exposed as commands/subcommands #
 #############################################################
 def _archive_run((run, days, force, compress_only)):
-    """ Archive a specific run to swestore
-
+    """ 
+    Archive a specific run to swestore
     :param str run: Run directory
     :param int days: Days to consider a run old
     :param bool force: Force the archiving even if the run is not complete
@@ -266,9 +255,9 @@ def _archive_run((run, days, force, compress_only)):
 
 
 def get_closed_projects(projs, pj_con, days):
-    """Takes list of project and gives project list that are closed
+    """
+    Takes list of project and gives project list that are closed
     more than given check 'days'
-
     :param list projs: list of projects to check
     :param obj pj_con: connection object to project database
     :param int days: number of days to check
@@ -291,10 +280,10 @@ def get_closed_projects(projs, pj_con, days):
 
 
 def check_days(site, days, config):
-    """Check if 'days' given while running command. If not take the default threshold
+    """
+    Check if 'days' given while running command. If not take the default threshold
     from config file (which should exist). Also when 'days' given on the command line
     raise a check to make sure it was really meant to do so
-
     :param str site: site to be cleaned and relevent date to pick
     :param int days: number of days to check, will be None if '-d' not used
     :param dict config: config file parsed and saved as dictionary

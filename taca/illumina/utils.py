@@ -7,7 +7,6 @@ import re
 import shutil
 import xml.etree.ElementTree as ET
 
-
 from bs4 import BeautifulSoup
 from itertools import izip_longest
 
@@ -16,27 +15,24 @@ from taca.utils import filesystem
 from taca.utils.config import CONFIG
 
 
-
-
-
 def last_index_read(directory):
-    """Parse the number of the highest index read from the RunInfo.xml
+    """
+    Parse the number of the highest index read from the RunInfo.xml
     """
     read_numbers = [int(read.get("Number", 0)) for read in parsers.get_read_configuration(directory) if read.get("IsIndexedRead", "") == "Y"]
     return 0 if len(read_numbers) == 0 else max(read_numbers)
 
-
 def get_base_masks(rundir):
-    """ Return a set of base masks to be used when demultiplexing.
-
+    """ 
+    Return a set of base masks to be used when demultiplexing.
     :param str rundir: Path to the run directory.
     :returns list: Basemasks to be used based on the SampleSeet information.
     """
     runsetup = parsers.get_read_configuration(rundir, sort=True)
     flowcell_id = parsers.get_flowcell_id(rundir)
     base_masks = {}
-
-    #Create groups of reads by index length
+    
+    # Create groups of reads by index length
     ss_name = os.path.join(rundir, str(flowcell_id) + '.csv')
     if os.path.exists(ss_name):
         ss = csv.DictReader(open(ss_name, 'rb'), delimiter=',')
@@ -49,7 +45,7 @@ def get_base_masks(rundir):
                                             'samples': {'fieldnames': ss.fieldnames, 'samples':[]}}
             base_masks[index_length]['samples']['samples'].append(r)
 
-    #Create the basemask for each group
+    # Create the basemask for each group
     for index_size, index_group in base_masks.iteritems():
         index_size = index_size
         group = index_size
@@ -73,7 +69,7 @@ def get_base_masks(rundir):
                     if index_size > 0:
                         to_mask = "I" + str(index_size)
                         if index_size < int(cycles):
-                           to_mask = to_mask + 'N' + str(int(cycles) - index_size)
+                            to_mask = to_mask + 'N' + str(int(cycles) - index_size)
                         bm.append(to_mask)
                         index_size = 0
                     else:
@@ -104,7 +100,7 @@ def merge_flowcell_demux_summary(u1, u2, fc_id):
 
     :return: merged: ElementTree resulting of merging both files.
     """
-    #Read the XML to merge
+    # Read the XML to merge
     fc1_f = os.path.join(u1, 'Basecall_Stats_{fc_id}'.format(fc_id=fc_id),
             'Flowcell_demux_summary.xml')
     fc2_f = os.path.join(u2, 'Basecall_Stats_{fc_id}'.format(fc_id=fc_id),
@@ -112,7 +108,7 @@ def merge_flowcell_demux_summary(u1, u2, fc_id):
     fc1 = ET.parse(fc1_f).getroot()
     fc2 = ET.parse(fc2_f).getroot()
 
-    #Create a new one and merge there
+    # Create a new one and merge there
     merged = ET.ElementTree(ET.Element('Summary'))
     merged_r = merged.getroot()
     lanes = merged_r.getchildren()
@@ -123,7 +119,6 @@ def merge_flowcell_demux_summary(u1, u2, fc_id):
     #Sort the children by lane number and return the merged file
     lanes.sort(key= lambda x: x.attrib['index'])
     return merged
-
 
 def merge_demultiplex_stats(u1, u2, fc_id):
     """Merge two Demultiplex_Stats.htm files.
@@ -148,14 +143,14 @@ def merge_demultiplex_stats(u1, u2, fc_id):
             'Demultiplex_Stats.htm')) as f:
         ds2 = BeautifulSoup(f.read())
 
-    #Get the information from the HTML files
+    # Get the information from the HTML files
     barcode_lane_statistics_u1, sample_information_u1 = ds1.find_all('div',
         attrs={'id':'ScrollableTableBodyDiv'})
     barcode_lane_statistics_u2, sample_information_u2 = ds2.find_all('div',
         attrs={'id':'ScrollableTableBodyDiv'})
 
-    #Append to the end (tr is the HTML tag under the <div> tag that delimites
-    #the sample and barcode statistics information)
+    # Append to the end (tr is the HTML tag under the <div> tag that delimites
+    # the sample and barcode statistics information)
     for sample in barcode_lane_statistics_u1.find_all('tr'):
         last_sample = sample
     [last_sample.append(new_sample) for new_sample in \
@@ -168,9 +163,9 @@ def merge_demultiplex_stats(u1, u2, fc_id):
 
     return ds1
 
-
 def merge_undemultiplexed_stats_metrics(u1, u2, fc_id):
-    """Merge and sort two Undemultiplexed_stats.metrics files.
+    """
+    Merge and sort two Undemultiplexed_stats.metrics files.
     """
     with open(os.path.join(u1, 'Basecall_Stats_{fc_id}'.format(fc_id=fc_id),
             'Undemultiplexed_stats.metrics'), 'a+') as us1:
@@ -189,10 +184,9 @@ def merge_undemultiplexed_stats_metrics(u1, u2, fc_id):
             for line in lines:
                 us1.writelines("\t".join(str(line_field) for line_field in line) + "\n")
 
-
 def merge_demux_results(fc_dir):
-    """Merge results of demultiplexing from different demultiplexing folders
-
+    """
+    Merge results of demultiplexing from different demultiplexing folders
     :param str fc_dir: Path to the flowcell directory.
     """
     for option in CONFIG['analysis']['bcl2fastq']['options']:
