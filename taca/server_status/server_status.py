@@ -5,7 +5,12 @@ import logging
 import couchdb
 import datetime
 
-from oauth2client.client import SignedJwtAssertionCredentials as GCredentials
+try:
+	from oauth2client.client import SignedJwtAssertionCredentials as GCredentials
+	has_oauth2client = True
+except ImportError:
+	has_oauth2client = False
+	
 from taca.utils.config import CONFIG
 
 def get_nases_disk_space():
@@ -75,6 +80,15 @@ def _parse_output(output): # for nases
 	return result
 
 def update_google_docs(data, credentials_file):
+	# Jose
+	# The latest version of oauth2client or any of its dependencies
+	# is not compatible with the current approach to do the
+	# oauth2 based connection. This is just a quick fix
+	# until a proper solution is implemented.
+	if not has_oauth2client:
+		logging.warn("Google Docs cannot be updated as there was a problem"
+					" importing the oauth2 client")
+		return
 	config = CONFIG['server_status']
 	# open json file
 	json_key = json.load(open(credentials_file))
@@ -97,8 +111,8 @@ def update_google_docs(data, credentials_file):
 
 
 def update_status_db(data):
-	"""Pushed the data to status db,
-	data can be from nases or from uppmax
+	""" Pushed the data to status db,
+		data can be from nases or from uppmax
 	"""
 	db_config = CONFIG.get('statusdb')
 	if db_config is None:

@@ -7,3 +7,5 @@ beautifulsoup4
 oauth2client
 PyOpenSSL
 gspread
+mock
+couchdb
