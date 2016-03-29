@@ -4,14 +4,13 @@ import os
 import shutil
 import tempfile
 import unittest
+import csv
 
 from datetime import datetime
 
 from taca.analysis.analysis import *
-from taca.illumina import Runs
-from taca.illumina import HiSeq_Runs
-from taca.illumina import HiSeqX_Runs
-
+from taca.illumina.Runs import Run
+from taca.illumina.HiSeqX_Runs import HiSeqX_Run
 from taca.utils import config as conf
 
 
@@ -86,10 +85,19 @@ class TestTracker(unittest.TestCase):
             shutil.copy('data/runParameters.xml', run)
         
         # Create run objects
-        self.running = HiSeqX_Run(os.path.join(self.tmp_dir, '141124_ST-RUNNING1_03_AFCIDXX'), CONFIG["analysis"]["HiSeqX"])
-        self.to_start = Run(os.path.join(self.tmp_dir, '141124_ST-TOSTART1_04_FCIDXXX'), CONFIG["analysis"]["HiSeqX"])
-        self.in_progress = Run(os.path.join(self.tmp_dir, '141124_ST-INPROGRESS1_02_AFCIDXX'), CONFIG["analysis"]["HiSeqX"])
-        self.completed = Run(os.path.join(self.tmp_dir, '141124_ST-COMPLETED1_01_AFCIDXX'), CONFIG["analysis"]["HiSeqX"])
+        # Jose : add tests for other sequencers
+        self.running = HiSeqX_Run(os.path.join(self.tmp_dir, 
+                                               '141124_ST-RUNNING1_03_AFCIDXX'), 
+                                  CONFIG["analysis"]["HiSeqX"])
+        self.to_start = Run(os.path.join(self.tmp_dir, 
+                                         '141124_ST-TOSTART1_04_FCIDXXX'), 
+                            CONFIG["analysis"]["HiSeqX"])
+        self.in_progress = Run(os.path.join(self.tmp_dir, 
+                                            '141124_ST-INPROGRESS1_02_AFCIDXX'), 
+                               CONFIG["analysis"]["HiSeqX"])
+        self.completed = Run(os.path.join(self.tmp_dir, 
+                                          '141124_ST-COMPLETED1_01_AFCIDXX'), 
+                             CONFIG["analysis"]["HiSeqX"])
         self.finished_runs = [self.to_start, self.in_progress, self.completed]
         self.transfer_file = os.path.join(self.tmp_dir, 'transfer.tsv')
 
