@@ -31,6 +31,19 @@ class NovaSeq_Run(HiSeq_Run):
     def _set_run_type(self):
         self.run_type = "NGI-RUN"
 
+    def _run_preprocessing(self):
+        try:
+            mfs_dest = os.path.join('/srv/mfs/NovaSeq_data', self.flowcell_id)
+            logger.info('Copying RunParameters.xml and RunInfo.xml for run {} to {}'.format(self.id, mfs_dest))
+            if not os.path.exists(mfs_dest):
+                os.mkdir(mfs_dest)
+            RunParameters_xml = os.path.join(self.run_dir, self.flowcell_id, 'RunParameters.xml')
+            RunInfo_xml = os.path.join(self.run_dir, self.flowcell_id, 'RunInfo.xml')
+            copyfile(RunParameters_xml, os.path.join(mfs_dest, 'RunParameters.xml'))
+            copyfile(RunInfo_xml, os.path.join(mfs_dest, 'RunInfo.xml'))
+        except:
+            logger.warn('Could not copy RunParameters.xml and RunInfo.xml for run {}'.format(self.id))
+
     def _generate_clean_samplesheet(self, ssparser):
         """
         Will generate a 'clean' samplesheet, for bcl2fastq2.19
@@ -60,8 +73,5 @@ class NovaSeq_Run(HiSeq_Run):
 
             output+=",".join(line_ar)
             output+=os.linesep
-        
+
         return output
-
-
-
