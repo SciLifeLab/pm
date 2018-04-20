@@ -10,6 +10,7 @@ from taca.illumina.HiSeqX_Runs import HiSeqX_Run
 from taca.illumina.HiSeq_Runs import HiSeq_Run
 from taca.illumina.MiSeq_Runs import MiSeq_Run
 from taca.illumina.NextSeq_Runs import NextSeq_Run
+from taca.illumina.NovaSeq_Runs import NovaSeq_Run
 from taca.utils.config import CONFIG
 
 import flowcell_parser.db as fcpdb
@@ -43,21 +44,24 @@ def get_runObj(run):
         logger.warn("Problems parsing the runParameters.xml file at {}. "
                     "This is quite unexpected. please archive the run {} manually".format(rppath, run))
     else:
-        # This information about the run type (with HiSeq2.5 applicationaName does not work anymore,
-        # but as for a long time we will have instruments not updated I need to find out something that works
-        try:
-            # Works for recent control software
-            runtype = rp.data['RunParameters']["Setup"]["Flowcell"]
-        except KeyError:
-            # Use this as second resource but print a warning in the logs
-            logger.warn("Parsing runParameters to fecth instrument type, "
-                        "not found Flowcell information in it. Using ApplicationName")
-            # here makes sense to use get with default value "" ->
-            # so that it doesn't raise an exception in the next lines
-            # (in case ApplicationName is not found, get returns None)
-            runtype = rp.data['RunParameters']["Setup"].get("ApplicationName", "")
+        #do a case by case test becasue there are so many version of RunParameters that there is no real other way
+        runtype = rp.data['RunParameters'].get("Application", "")
+        if "Setup" in rp.data['RunParameters']:
+            #this is the HiSeq2500, MiSeq, and HiSeqX case
+            try:
+                # Works for recent control software
+                runtype = rp.data['RunParameters']["Setup"]["Flowcell"]
+            except KeyError:
+                # Use this as second resource but print a warning in the logs
+                logger.warn("Parsing runParameters to fecth instrument type, "
+                            "not found Flowcell information in it. Using ApplicationName")
+                # here makes sense to use get with default value "" ->
+                # so that it doesn't raise an exception in the next lines
+                # (in case ApplicationName is not found, get returns None)
+                runtype = rp.data['RunParameters']["Setup"].get("ApplicationName", "")
 
-        if "HiSeq X" in runtype:
+
+        if "HiSeq X" in runtype in runtype:
             return HiSeqX_Run(run, CONFIG["analysis"]["HiSeqX"])
         elif "HiSeq" in runtype or "TruSeq" in runtype:
             return HiSeq_Run(run, CONFIG["analysis"]["HiSeq"])
@@ -65,6 +69,8 @@ def get_runObj(run):
             return MiSeq_Run(run, CONFIG["analysis"]["MiSeq"])
         elif "NextSeq" in runtype:
             return NextSeq_Run(run, CONFIG["analysis"]["NextSeq"])
+        elif "NovaSeq" in runtype:
+            return NovaSeq_Run(run, CONFIG["analysis"]["NovaSeq"])
         else:
             logger.warn("Unrecognized run type {}, cannot archive the run {}. "
                         "Someone as likely bought a new sequencer without telling "
@@ -121,6 +127,9 @@ def _upload_to_statusdb(run):
             # else to accomodate the wired things we do
             # someone told me that in such cases it is better to put a place holder for this
             parser.obj['illumina']['Demultiplex_Stats']['NotOriginal'] = "True"
+    # Update info about bcl2fastq tool
+    if not parser.obj.get('DemultiplexConfig'):
+        parser.obj['DemultiplexConfig'] = {'Setup': {'Software': run.CONFIG.get('bcl2fastq',{})}}
     fcpdb.update_doc( db , parser.obj, over_write_db_entry=True)
 
 def transfer_run(run_dir, analysis):
@@ -178,29 +187,24 @@ def run_preprocessing(run, force_trasfer=True, statusdb=True):
         elif run.get_run_status() == 'IN_PROGRESS':
             logger.info(("BCL conversion and demultiplexing process in "
                          "progress for run {}, skipping it".format(run.id)))
-            # In the case of Xten returns, in future have a look to Cycles.txt
-            # in the case of HiSeq check that partial demux are done and performs aggregation if this is the case
+            #this function checks if demux is done
             run.check_run_status()
 
-        # previous elif might change the status to COMPLETED (in HiSeq), therefore to avoid skipping
+        # previous elif might change the status to COMPLETED, therefore to avoid skipping
         # a cycle take the last if out of the elif
         if run.get_run_status() == 'COMPLETED':
             logger.info(("Preprocessing of run {} is finished, transferring it".format(run.id)))
-            # In the case of of HiSeq this function computes undetermined indexes for NoIndex lanes
-            if not run.compute_undetermined():
-                return
-            # Otherwise I can proceed to QC
-            # Check the run QC
-            run_QC_status = run.check_QC()
-            if run_QC_status is not None:
-                # Store QC results in appropriate file and mail user if failed
-                qc_file = os.path.join(CONFIG['analysis']['status_dir'], 'qc.tsv')
-                # This method is implemented in Runs
-                run.post_qc(qc_file, run_QC_status, log_file=CONFIG['log']['file'],
-                            rcp=CONFIG['mail']['recipients'])
             # Upload to statusDB if applies
             if 'statusdb' in CONFIG:
                 _upload_to_statusdb(run)
+                #notify with a mail run completion and stats uploaded
+                msg = """The run {run} has been demultiplexed.
+                The Run will be transferred to Irma for further analysis.
+
+                The run is available at : https://genomics-status.scilifelab.se/flowcells/{run}
+
+                """.format(run=run.id)
+                run.send_mail(msg, rcp=CONFIG['mail']['recipients'])
 
             # Copy demultiplex stats file to shared file system for LIMS purpose
             if 'mfs_path' in CONFIG['analysis']:
@@ -223,6 +227,7 @@ def run_preprocessing(run, force_trasfer=True, statusdb=True):
                                     run.CONFIG['analysis_server']['host'],
                                     run.CONFIG['analysis_server']['sync']['data_archive']))
                 run.transfer_run(t_file,  False, mail_recipients) # Do not trigger analysis
+
 
             # Archive the run if indicated in the config file
             if 'storage' in CONFIG:

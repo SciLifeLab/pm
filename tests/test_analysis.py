@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import unittest
 import csv
+import json
 
 from datetime import datetime
 
@@ -22,7 +23,7 @@ def processing_status(run_dir):
     demux_dir = os.path.join(run_dir, 'Demultiplexing')
     if not os.path.exists(demux_dir):
         return 'TO_START'
-    elif os.path.exists(os.path.join(demux_dir, 'Stats', 'DemultiplexingStats.xml')):
+    elif os.path.exists(os.path.join(demux_dir, 'Stats', 'Stats.json')):
         return 'COMPLETED'
     else:
         return 'IN_PROGRESS'
@@ -73,7 +74,9 @@ class TestTracker(unittest.TestCase):
 
         # Create files indicating that the preprocessing is done
         open(os.path.join(completed, 'Demultiplexing', 'Stats', 'DemultiplexingStats.xml'), 'w').close()
-
+        with open(os.path.join(completed, 'Demultiplexing', 'Stats', 'Stats.json'), 'w') as stats_json:
+            json.dump({"silly": 1}, stats_json)
+        
         # Create transfer file and add the completed run
         with open(self.transfer_file, 'w') as f:
             tsv_writer = csv.writer(f, delimiter='\t')
@@ -85,8 +88,7 @@ class TestTracker(unittest.TestCase):
             shutil.copy('data/runParameters.xml', run)
         
         # Create run objects
-        # Jose : add tests for other sequencers
-        self.running = HiSeqX_Run(os.path.join(self.tmp_dir, 
+        self.running = HiSeqX_Run(os.path.join(self.tmp_dir,
                                                '141124_ST-RUNNING1_03_AFCIDXX'), 
                                   CONFIG["analysis"]["HiSeqX"])
         self.to_start = Run(os.path.join(self.tmp_dir, 
@@ -118,7 +120,7 @@ class TestTracker(unittest.TestCase):
         self.assertEqual('TO_START', self.to_start.get_run_status())
         self.assertEqual('IN_PROGRESS', self.in_progress.get_run_status())
         self.assertEqual('COMPLETED', self.completed.get_run_status())
-
+    
     def test_3_is_transferred(self):
         """ is_transferred should rely on the info in transfer.tsv
         """

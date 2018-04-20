@@ -39,8 +39,8 @@ def collect_runs():
             for run_dir in potential_run_dirs:
                 if rundir_re.match(os.path.basename(os.path.abspath(run_dir))) and os.path.isdir(run_dir):
                     found_runs.append(os.path.basename(run_dir))
-                    logger.info("Working on {}".format(run_dir))   
-                    #updates run status     
+                    logger.info("Working on {}".format(run_dir))
+                    #updates run status
                     update_statusdb(run_dir)
         nosync_data_dir = os.path.join(data_dir, "nosync")
         potential_nosync_run_dirs=glob.glob(os.path.join(nosync_data_dir, '*'))
@@ -49,7 +49,7 @@ def collect_runs():
             if rundir_re.match(os.path.basename(os.path.abspath(run_dir))) and os.path.isdir(run_dir):
                 #update the run status
                 update_statusdb(run_dir)
-                
+
 """ Gets status for a project
 """
 def update_statusdb(run_dir):
@@ -68,7 +68,7 @@ def update_statusdb(run_dir):
                     for project in project_info[flowcell][lane][sample]:
                         project_info[flowcell][lane][sample].value = get_status(run_dir)
                         sample_status = project_info[flowcell][lane][sample].value
-                        obj={'run_id':run_id, 'project_id':project, 'flowcell': flowcell, 'lane': lane, 
+                        obj={'run_id':run_id, 'project_id':project, 'flowcell': flowcell, 'lane': lane,
                              'sample':sample, 'status':sample_status, 'values':{valueskey:{'user':'taca','sample_status':sample_status}} }
                         #If entry exists, append to existing
                         #Special if case to handle lanes written as int, can be safely removed when old lanes
@@ -85,7 +85,7 @@ def update_statusdb(run_dir):
                                 #Appends old entry to new. Essentially merges the two
                                 for k, v in remote_doc.items():
                                     obj['values'][k] = v
-                                logger.info("Updating {} {} {} {} {} as {}".format(run_id, project, 
+                                logger.info("Updating {} {} {} {} {} as {}".format(run_id, project,
                                 flowcell, lane, sample, sample_status))
                                 #Sorts timestamps
                                 obj['values'] = OrderedDict(sorted(obj['values'].iteritems(),key=lambda (k,v): k,reverse=True))
@@ -95,33 +95,33 @@ def update_statusdb(run_dir):
                                 db.save(obj)
                         #Creates new entry
                         else:
-                            logger.info("Creating {} {} {} {} {} as {}".format(run_id, project, 
+                            logger.info("Creating {} {} {} {} {} as {}".format(run_id, project,
                             flowcell, lane, sample, sample_status))
                             #creates record
                             db.save(obj)
                         #Sets FC error flag
                         if not project_info[flowcell].value == None:
                             if (("Failed" in project_info[flowcell].value and "Failed" not in sample_status)
-                             or ("Failed" in sample_status and "Failed" not in project_info[flowcell].value)): 
-                                project_info[flowcell].value = 'Ambiguous' 
+                             or ("Failed" in sample_status and "Failed" not in project_info[flowcell].value)):
+                                project_info[flowcell].value = 'Ambiguous'
                             else:
                                 project_info[flowcell].value = sample_status
             #Checks if a flowcell needs partial re-doing
             #Email error per flowcell
             if not project_info[flowcell].value == None:
-                if 'Ambiguous' in project_info[flowcell].value:    
-                    error_emailer('failed_run', run_name) 
-                    
+                if 'Ambiguous' in project_info[flowcell].value:
+                    error_emailer('failed_run', run_name)
+
 """ Gets status of a sample run, based on flowcell info (folder structure)
 """
-def get_status(run_dir):    
+def get_status(run_dir):
     #default state, should never occur
     status = 'ERROR'
     run_name = os.path.basename(os.path.abspath(run_dir))
     xten_dmux_folder=os.path.join(run_dir, 'Demultiplexing')
     unaligned_folder=glob.glob(os.path.join(run_dir, 'Unaligned_*'))
     nosync_pattern = re.compile("nosync")
-    
+
     #If we're in a nosync folder
     if nosync_pattern.search(run_dir):
         status = 'New'
@@ -145,7 +145,7 @@ def get_ss_projects(run_dir):
     FCID = run_name_components[3][1:]
     newData = False
     miseq = False
-    
+
     if os.path.exists(os.path.join(run_dir, 'runParameters.xml')):
         run_parameters_file = "runParameters.xml"
     elif os.path.exists(os.path.join(run_dir, 'RunParameters.xml')):
@@ -157,10 +157,16 @@ def get_ss_projects(run_dir):
     try:
         runtype = rp.data['RunParameters']["Setup"]["Flowcell"]
     except KeyError:
-            logger.warn("Parsing runParameters to fetch instrument type, "
-                        "not found Flowcell information in it. Using ApplicationName")
+        logger.warn("Parsing runParameters to fetch instrument type, "
+                "not found Flowcell information in it. Using ApplicationName")
+        try:
             runtype = rp.data['RunParameters']["Setup"].get("ApplicationName", "")
+        except KeyError:
+            logger.warn("Couldn't find 'Setup' or 'ApplicationName' could be Novaseq. Trying 'Application'")
+            runtype = rp.data['RunParameters']['Application']
+
     
+
     #Miseq case
     if "MiSeq" in runtype:
         if os.path.exists(os.path.join(run_dir,'Data','Intensities','BaseCalls', 'SampleSheet.csv')):
@@ -177,21 +183,26 @@ def get_ss_projects(run_dir):
     #HiSeq X case
     elif "HiSeq X" in runtype:
         FCID_samplesheet_origin = os.path.join(CONFIG['bioinfo_tab']['xten_samplesheets'],
-                                    current_year, '{}.csv'.format(FCID))   
+                                    current_year, '{}.csv'.format(FCID))
         data = parse_samplesheet(FCID_samplesheet_origin, run_dir)
     #HiSeq 2500 case
     elif "HiSeq" in runtype or "TruSeq" in runtype:
         FCID_samplesheet_origin = os.path.join(CONFIG['bioinfo_tab']['hiseq_samplesheets'],
+                                    current_year, '{}.csv'.format(FCID))
+        data = parse_samplesheet(FCID_samplesheet_origin, run_dir)
+    #NovaSeq 600 case
+    elif "NovaSeq" in runtype:
+        FCID_samplesheet_origin = os.path.join(CONFIG['bioinfo_tab']['novaseq_samplesheets'],
                                     current_year, '{}.csv'.format(FCID)) 
         data = parse_samplesheet(FCID_samplesheet_origin, run_dir)
     else:
         logger.warn("Cannot locate the samplesheet for run {}".format(run_dir))
         return []
-        
+
     #If samplesheet is empty, dont bother going through it
     if data == []:
             return data
-            
+
     proj_n_sample = False
     lane = False
     for d in data:
@@ -202,19 +213,19 @@ def get_ss_projects(run_dir):
                 #project is also found
                 projects = sample_proj_pattern.search(v).group(2)
                 proj_n_sample = True
-                
+
             #if a lane is found
             elif not miseq and lane_pattern.search(v):
                 #In miseq case, FC only has 1 lane
                 lanes = lane_pattern.search(v).group(1)
                 lane = True
-         
+
         #Populates structure
         if proj_n_sample and lane or proj_n_sample and miseq:
             proj_tree[FCID][lanes][samples][projects]
             proj_n_sample = False
             lane = False
-    
+
     if proj_tree.keys() == []:
         logger.info("INCORRECTLY FORMATTED SAMPLESHEET, CHECK {}".format(run_name))
     return proj_tree
@@ -230,7 +241,7 @@ def parse_samplesheet(FCID_samplesheet_origin, run_dir, is_miseq=False):
     except:
         logger.warn("Cannot initialize SampleSheetParser for {}. Most likely due to poor comma separation".format(run_dir))
         return []
-    
+
     if is_miseq:
         if not 'Description' in ss_reader.header or not \
         ('Production' in ss_reader.header['Description'] or 'Application' in ss_reader.header['Description']):
@@ -245,9 +256,9 @@ def parse_samplesheet(FCID_samplesheet_origin, run_dir, is_miseq=False):
 """
 def error_emailer(flag, info):
     recipients = CONFIG['mail']['recipients']
-    
+
     #failed_run: Samplesheet for a given project couldn't be found
-    
+
     body='TACA has encountered an issue that might be worth investigating\n'
     body+='The offending entry is: '
     body+= info
@@ -259,8 +270,8 @@ def error_emailer(flag, info):
         subject='WARNING, Reinitialization of partially failed FC'
     elif (flag == 'weird_samplesheet'):
         subject='ERROR, Incorrectly formatted samplesheet'
-       
-    hourNow = datetime.datetime.now().hour 
+
+    hourNow = datetime.datetime.now().hour
     if hourNow == 7 or hourNow == 12 or hourNow == 16:
         send_mail(subject, body, recipients)
 
@@ -289,7 +300,7 @@ def fail_run(runid, project):
         rows = view[[runid]].rows
         logger.info('Updating status of {} objects with flowcell_id: {}'.format(len(rows), runid))
 
-    new_timestamp = str(datetime.datetime.now())
+    new_timestamp = datetime.datetime.now().isoformat()
     updated = 0
     for row in rows:
         if row.value['status'] != 'Failed':
