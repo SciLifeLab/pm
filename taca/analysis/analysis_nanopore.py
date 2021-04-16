@@ -36,14 +36,15 @@ def find_runs_to_process():
         logger.warn('Could not find any run directories in {}'.format(nanopore_data_dir))
     return found_run_dirs
 
+
 def process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet):
-    """Proceess nanopore runs."""
+    """Process nanopore runs."""
     qc_run = True
     if nanoseq_sample_sheet and not anglerfish_sample_sheet:
         qc_run = False
 
     logger.info('Processing run: {} as a {}'.format(run_dir, 'QC run' if qc_run else 'non-QC run'))
-    summary_file = glob.glob(run_dir + '/final_summary*.txt')[0]
+    summary_file = glob.glob(run_dir + '/final_summary*.txt')
     nanoseq_dir = os.path.join(run_dir, 'nanoseq_output')
     anglerfish_dir = os.path.join(run_dir, 'anglerfish_output')
     anglerfish_sample_sheet = os.path.join(run_dir, 'anglerfish_sample_sheet.csv')
@@ -51,7 +52,7 @@ def process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet):
     anglerfish_exit_status_file = os.path.join(run_dir, '.exitcode_for_anglerfish')
     email_recipients = CONFIG.get('mail').get('recipients')
 
-    if os.path.isfile(summary_file) and not os.path.isdir(nanoseq_dir):
+    if len(summary_file) and os.path.isfile(summary_file[0]) and not os.path.isdir(nanoseq_dir):
         logger.info('Sequencing done for run {}. Attempting to start analysis.'.format(run_dir))
         if not nanoseq_sample_sheet:
             nanoseq_sample_sheet = parse_lims_sample_sheet(run_dir)
@@ -397,4 +398,5 @@ def run_preprocessing(run, nanoseq_sample_sheet, anglerfish_sample_sheet):
     else:
         runs_to_process = find_runs_to_process()
         for run_dir in runs_to_process:
+
             process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet)
