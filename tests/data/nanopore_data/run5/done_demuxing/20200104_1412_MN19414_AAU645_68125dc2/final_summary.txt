@@ -1,0 +1,17 @@
+instrument=MN19414
+position=
+flow_cell_id=AAU644
+sample_id=blah
+protocol_group_id=blah
+protocol=4a127386521a00415c821269a588a9271276dfd0
+protocol_run_id=5db4c5bc-34c9-452b-9d10-70e013228328
+acquisition_run_id=8b4541217a81f608d0562c0a0847b703ba77d13d
+started=2020-08-03T15:05:12.504585+02:00
+acquisition_stopped=2020-08-04T09:05:16.104836+02:00
+processing_stopped=2020-08-04T09:05:17.311324+02:00
+basecalling_enabled=0
+sequencing_summary_file=
+fast5_files_in_final_dest=42
+fast5_files_in_fallback=0
+fastq_files_in_final_dest=0
+fastq_files_in_fallback=0

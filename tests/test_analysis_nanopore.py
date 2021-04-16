@@ -19,6 +19,7 @@ class TestNanoporeAnalysis(unittest.TestCase):
                          "data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2",
                          "data/nanopore_data/run2/done_sequencing/20200102_1412_MN19414_AAU642_68125dc2",
                          "data/nanopore_data/run3/demultiplexing/20200103_1412_MN19414_AAU643_68125dc2",
+                         "data/nanopore_data/run5/done_demuxing/20200104_1412_MN19414_AAU645_68125dc2",
                          "data/nanopore_data/run7/done_no_sample_sheet/20200107_1412_MN19417_AAU645_68125dc2",
                          "data/nanopore_data/run8/demux_failed/20200108_1412_MN19414_AAU648_68125dc2"]
         found_dirs = find_runs_to_process()
@@ -224,43 +225,55 @@ class TestNanoporeAnalysis(unittest.TestCase):
         email_recipients = 'test@test.com'
         mock_mail.assert_called_once_with(email_subject, email_message, email_recipients)
 
+    @mock.patch('taca.analysis.analysis_nanopore.start_anglerfish')
+    @mock.patch('taca.analysis.analysis_nanopore.start_nanoseq')
     @mock.patch('taca.analysis.analysis_nanopore.find_runs_to_process')
-    @mock.patch('taca.analysis.analysis_nanopore.process_run')
-    def test_process_run_preprocessing_still_sequencing(self, mock_process_run, mock_find_runs):
-        """The main entry point should not start any run since sequencing is ongoing. """
+    @mock.patch('taca.analysis.analysis_nanopore.transfer_run')
+    @mock.patch('taca.analysis.analysis_nanopore.update_transfer_log')
+    @mock.patch('taca.analysis.analysis_nanopore.parse_lims_sample_sheet')
+    @mock.patch('taca.analysis.analysis_nanopore.archive_run')
+    @mock.patch('taca.analysis.analysis_nanopore.send_mail')
+    def test_process_run_preprocessing_still_sequencing(self, mock_mail, mock_archive, mock_parser, mock_update, mock_transfer,
+                                                        mock_find_runs, mock_start_nanoseq, mock_start_anglerfish):
+        """The main entry point should not start nanoseq since sequencing is ongoing. """
+
+        mock_parser.return_value = 'data/nanopore_samplesheets/expected/SQK-LSK109_sample_sheet.csv'
 
         expected_dirs = ["data/nanopore_data/run1/still_sequencing/20200101_1412_MN19414_AAU641_68125dc2",
                          "data/nanopore_data/run2/done_sequencing/20200102_1412_MN19414_AAU642_68125dc2",
+                         "data/nanopore_data/run3/demultiplexing/20200103_1412_MN19414_AAU643_68125dc2",
                          "data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2",
+                         "data/nanopore_data/run5/done_demuxing/20200104_1412_MN19414_AAU645_68125dc2",
                          "data/nanopore_data/run7/done_no_sample_sheet/20200107_1412_MN19417_AAU645_68125dc2",
                          "data/nanopore_data/run8/demux_failed/20200108_1412_MN19414_AAU648_68125dc2"]
-        mock_find_runs.return_value = expected_dirs
-        run_preprocessing(None, 'dummy/path', None)
-        self.assertEqual(mock_process_run.call_count, 0)
 
+        mock_find_runs.return_value = expected_dirs
+        run_preprocessing(None, None, None)
+        self.assertEqual(mock_start_anglerfish.call_count, 1)
+        self.assertEqual(mock_start_nanoseq.call_count, 0)
+
+    @mock.patch('taca.analysis.analysis_nanopore.start_anglerfish')
+    @mock.patch('taca.analysis.analysis_nanopore.start_nanoseq')
     @mock.patch('taca.analysis.analysis_nanopore.find_runs_to_process')
-    @mock.patch('taca.analysis.analysis_nanopore.process_run')
-    def test_process_run_preprocessing_nanoseq_running(self, mock_process_run, mock_find_runs):
-        """The main entry point should not start any run when nanoseq is already running """
+    @mock.patch('taca.analysis.analysis_nanopore.transfer_run')
+    @mock.patch('taca.analysis.analysis_nanopore.update_transfer_log')
+    @mock.patch('taca.analysis.analysis_nanopore.parse_lims_sample_sheet')
+    @mock.patch('taca.analysis.analysis_nanopore.archive_run')
+    @mock.patch('taca.analysis.analysis_nanopore.send_mail')
+    def test_process_run_preprocessing_done_sequencing(self, mock_mail, mock_archive, mock_parser, mock_update, mock_transfer,
+                                                        mock_find_runs, mock_start_nanoseq, mock_start_anglerfish):
+        """The main entry point should start one nanoseq when sequencing is not ongoing. """
+
+        mock_parser.return_value = 'data/nanopore_samplesheets/expected/SQK-LSK109_sample_sheet.csv'
 
         expected_dirs = ["data/nanopore_data/run2/done_sequencing/20200102_1412_MN19414_AAU642_68125dc2",
                          "data/nanopore_data/run3/demultiplexing/20200103_1412_MN19414_AAU643_68125dc2",
                          "data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2",
+                         "data/nanopore_data/run5/done_demuxing/20200104_1412_MN19414_AAU645_68125dc2",
                          "data/nanopore_data/run7/done_no_sample_sheet/20200107_1412_MN19417_AAU645_68125dc2",
                          "data/nanopore_data/run8/demux_failed/20200108_1412_MN19414_AAU648_68125dc2"]
-        mock_find_runs.return_value = expected_dirs
-        run_preprocessing(None, 'dummy/path', None)
-        self.assertEqual(mock_process_run.call_count, 0)
 
-    @mock.patch('taca.analysis.analysis_nanopore.find_runs_to_process')
-    @mock.patch('taca.analysis.analysis_nanopore.process_run')
-    def test_process_run_preprocessing_nothing_running(self, mock_process_run, mock_find_runs):
-        """The main entry point should start a single run when nothing is ongoing. """
-
-        expected_dirs = ["data/nanopore_data/run2/done_sequencing/20200102_1412_MN19414_AAU642_68125dc2",
-                         "data/nanopore_data/run4/done_demuxing/20200104_1412_MN19414_AAU644_68125dc2",
-                         "data/nanopore_data/run7/done_no_sample_sheet/20200107_1412_MN19417_AAU645_68125dc2",
-                         "data/nanopore_data/run8/demux_failed/20200108_1412_MN19414_AAU648_68125dc2"]
         mock_find_runs.return_value = expected_dirs
-        run_preprocessing(None, 'dummy/path', None)
-        self.assertEqual(mock_process_run.call_count, 1)
+        run_preprocessing(None, None, None)
+        self.assertEqual(mock_start_anglerfish.call_count, 1)
+        self.assertEqual(mock_start_nanoseq.call_count, 1)
