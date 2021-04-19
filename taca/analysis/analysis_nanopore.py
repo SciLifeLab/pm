@@ -37,8 +37,23 @@ def find_runs_to_process():
     return found_run_dirs
 
 
-def process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet):
-    """Process nanopore runs."""
+def check_ongoing_sequencing(run_dir):
+    """Check if sequencing is ongoing for the given run dir """
+    summary_file = glob.glob(run_dir + '/final_summary*.txt')
+
+    if not len(summary_file):
+        logger.info('Sequencing ongoing for run {}. Will not start nanoseq at this time'.format(run_dir))
+        return True
+    else:
+        return False
+
+
+def process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet, sequencing_ongoing=False, nanoseq_ongoing=False):
+    """Process nanopore runs.
+
+    Will not start nanoseq if a sequencing run is ongoing, to limit memory usage.
+    Will also maximum start one nanoseq run at once, for the same reason.
+    """
     qc_run = True
     if nanoseq_sample_sheet and not anglerfish_sample_sheet:
         qc_run = False
@@ -58,8 +73,13 @@ def process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet):
             nanoseq_sample_sheet = parse_lims_sample_sheet(run_dir)
 
         if os.path.isfile(nanoseq_sample_sheet):
-            start_nanoseq(run_dir, nanoseq_sample_sheet)
-
+            if nanoseq_ongoing:
+                logger.warn('Nanoseq already started, will not attempt to start for {}'.format(run_dir))
+            elif sequencing_ongoing:
+                logger.warn('Sequencing ongoing, will not attempt to start Nanoseq for {}'.format(run_dir))
+            else:
+                start_nanoseq(run_dir, nanoseq_sample_sheet)
+                nanoseq_ongoing = True
         else:
             logger.warn('Samplesheet not found for run {}. Operator notified. Skipping.'.format(run_dir))
             email_subject = ('Samplesheet missing for run {}'.format(os.path.basename(run_dir)))
@@ -157,7 +177,8 @@ def process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet):
     else:
         logger.info('Run {} not finished sequencing yet. Skipping.'.format(run_dir))
 
-    return
+    return nanoseq_ongoing
+
 
 def parse_lims_sample_sheet(run_dir):
     """Generate nanoseq samplesheet based on Lims original."""
@@ -170,13 +191,14 @@ def parse_lims_sample_sheet(run_dir):
         anglerfish_samplesheet_location = ''
     return nanoseq_samplesheet_location
 
+
 def get_original_samplesheet(run_id):
     """Find original lims sample sheet."""
     year_processed = run_id[0:4]
     flowcell_id = run_id.split('_')[3]
     lims_samplesheet_dir = os.path.join(CONFIG.get('nanopore_analysis').get('samplesheets_dir'),
                                         year_processed)
-    found_samplesheets = glob.glob(lims_samplesheet_dir + '/*'+ flowcell_id + '*')
+    found_samplesheets = glob.glob(lims_samplesheet_dir + '/*' + flowcell_id + '*')
     if not found_samplesheets:
         logger.warn('No Lims sample sheets found for run {}'.format(run_id))
         return
@@ -184,6 +206,7 @@ def get_original_samplesheet(run_id):
         logger.warn('Found more than one Lims sample sheets for run {}'.format(run_id))
         return
     return found_samplesheets[0]
+
 
 def parse_samplesheet(run_dir, lims_samplesheet):
     """Parse Lims samplesheet into one suitable for nanoseq and anglerfish."""
@@ -194,17 +217,17 @@ def parse_samplesheet(run_dir, lims_samplesheet):
     anglerfish_content = ''
     with open(lims_samplesheet, 'r') as f:
         lines = sorted(f.readlines())
-        first_sample_name = lines[0].split(',')[0] # Get name of first sample
-        fastq_location = os.path.join(run_dir, 'nanoseq_output', 'guppy', 'fastq') # Set the location of the first sample
+        first_sample_name = lines[0].split(',')[0]  # Get name of first sample
+        fastq_location = os.path.join(run_dir, 'nanoseq_output', 'guppy', 'fastq')  # Set the location of the first sample
         for line in lines:
-            sample_name, nanoseq_barcode, run_type, illumina_barcode, location = line.split(',') #TODO remove location once/if removed in lims
+            sample_name, nanoseq_barcode, run_type, illumina_barcode, location = line.split(',')  #TODO remove location once/if removed in lims
             if nanoseq_barcode and nanoseq_barcode in BARCODES:
                 barcode = BARCODES[nanoseq_barcode]
                 is_pool = False
             else:
                 barcode = '0'
                 is_pool = True
-            nanoseq_content += '\n' + sample_name + ',,' + barcode + ',,' # Only need sample and barcode for now.
+            nanoseq_content += '\n' + sample_name + ',,' + barcode + ',,'  # Only need sample and barcode for now.
             if illumina_barcode:
                 # If there are no nanopore barcodes, the samples are from the same pool and will end up in
                 # the same nanoseq output file named after the firts sample in the sample sheet
@@ -219,6 +242,7 @@ def parse_samplesheet(run_dir, lims_samplesheet):
         with open(anglerfish_samplesheet, 'w') as f:
             f.write(anglerfish_content)
     return nanoseq_samplesheet
+
 
 def start_nanoseq(run_dir, sample_sheet):
     """Start Nanoseq analysis."""
@@ -259,6 +283,7 @@ def start_nanoseq(run_dir, sample_sheet):
                     'Please check the logfile for info.'.format(run_dir))
     return
 
+
 def get_flowcell_id(run_dir):
     """Look for flow_cell_product_code in report.md and return the corresponding value."""
     report_file = glob.glob(run_dir + '/report*.md')[0]
@@ -267,23 +292,25 @@ def get_flowcell_id(run_dir):
             if 'flow_cell_product_code' in line:
                 return line.split('"')[3]
 
+
 def is_multiplexed(sample_sheet):
     """Look in the sample_sheet and return True if the run was multiplexed, else False.
     Assumes that a run that has not been multiplexed has the barcode 0."""
     with open(sample_sheet, 'r') as f:
         for i, line in enumerate(f):
-            if i == 1: # Only need to check first non-header line
+            if i == 1:  # Only need to check first non-header line
                 line_entries = line.split(',')
     if line_entries[2] == '0':
         return False
     else:
         return True
 
+
 def get_barcode_kit(sample_sheet):
     """Figure out which barcode kit was used. Assumes only one kit is ever used."""
     with open(sample_sheet, 'r') as f:
         for i, line in enumerate(f):
-            if i == 1: # Only need to check first non-header line
+            if i == 1:  # Only need to check first non-header line
                 line_entries = line.split(',')
     if int(line_entries[2]) <= 12:
         return 'EXP-NBD104'
@@ -291,11 +318,13 @@ def get_barcode_kit(sample_sheet):
         return 'EXP-NBD114'
     barcode_kit = get_barcode_kit(sample_sheet)
 
+
 def check_exit_status(status_file):
     """Read pipeline exit status file and return True if 0, False if anything else"""
     with open(status_file, 'r') as f:
         exit_status = f.readline().strip()
     return exit_status == '0'
+
 
 def start_anglerfish(run_dir, af_sample_sheet, output_dir):
     """Start Anglerfish."""
@@ -314,6 +343,7 @@ def start_anglerfish(run_dir, af_sample_sheet, output_dir):
                     'Please check the logfile for info.'.format(run_dir))
     return
 
+
 def copy_results_for_lims(run_dir, anglerfish_results_dir):
     """Find results and copy to lims directory."""
     run_id = os.path.basename(run_dir)
@@ -328,6 +358,7 @@ def copy_results_for_lims(run_dir, anglerfish_results_dir):
         logger.warn('An error occurred while copying the Anglerfish results for {} to lims: {}'.format(run_id, e))
     return
 
+
 def find_anglerfish_results(anglerfish_dir):
     """Return location of Anglerfish results."""
     results_file = ''
@@ -338,10 +369,12 @@ def find_anglerfish_results(anglerfish_dir):
     if not results_file:
         logger.warn('Could not find any Anglerfish results in {}'.format(anglerfish_dir))
 
+
 def is_not_transferred(run_id, transfer_log):
     """Return True if run id not in transfer.tsv, else False."""
     with open(transfer_log, 'r') as f:
         return run_id not in f.read()
+
 
 def transfer_run(run_dir):
     """rsync dir to Irma."""
@@ -349,9 +382,9 @@ def transfer_run(run_dir):
     destination = CONFIG.get('nanopore_analysis').get('transfer').get('destination')
     rsync_opts = {'-Lav': None,
                   '--chown': ':ngi2016003',
-                  '--chmod' : 'Dg+s,g+rw',
-                  '-r' : None,
-                  '--exclude' : 'work'}
+                  '--chmod': 'Dg+s,g+rw',
+                  '-r': None,
+                  '--exclude': 'work'}
     connection_details = CONFIG.get('nanopore_analysis').get('transfer').get('analysis_server')
     transfer_object = RsyncAgent(run_dir,
                                  dest_path=destination,
@@ -367,6 +400,7 @@ def transfer_run(run_dir):
         return False
     return True
 
+
 def update_transfer_log(run_id, transfer_log):
     """Update transfer log with run id and date."""
     try:
@@ -378,12 +412,13 @@ def update_transfer_log(run_id, transfer_log):
                     'Please make sure gets updated.'.format(run_id, transfer_log))
     return
 
+
 def archive_run(run_dir):
     """Move directory to nosync."""
     logger.info('Archiving run ' + run_dir)
     archive_dir = CONFIG.get('nanopore_analysis').get('finished_dir')
-    top_dir = '/'.join(run_dir.split('/')[0:-2]) # Get the project folder to archive
-    try:                                         # Try pathlib (pathlib.Path(run_dir).parent.parent) when running completely on python3
+    top_dir = '/'.join(run_dir.split('/')[0:-2])  # Get the project folder to archive
+    try:                                          # Try pathlib (pathlib.Path(run_dir).parent.parent) when running completely on python3
         shutil.move(top_dir, archive_dir)
         logger.info('Successfully archived {}'.format(run_dir))
     except shutil.Error:
@@ -391,12 +426,18 @@ def archive_run(run_dir):
                     'Please check the logfile for more info.'.format(run_dir))
     return
 
+
 def run_preprocessing(run, nanoseq_sample_sheet, anglerfish_sample_sheet):
     """Find runs and kick off processing."""
     if run:
         process_run(os.path.abspath(run), nanoseq_sample_sheet, anglerfish_sample_sheet)
     else:
         runs_to_process = find_runs_to_process()
+        sequencing_ongoing, nanoseq_ongoing = False, False
         for run_dir in runs_to_process:
-
-            process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet)
+            if check_ongoing_sequencing(run_dir):
+                sequencing_ongoing = True
+                break
+        for run_dir in runs_to_process:
+            nanoseq_ongoing = process_run(run_dir, nanoseq_sample_sheet, anglerfish_sample_sheet,
+                                          sequencing_ongoing=sequencing_ongoing, nanoseq_ongoing=nanoseq_ongoing)
