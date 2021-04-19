@@ -1,5 +1,8 @@
 # TACA Version Log
 
+## 20210419.1
+Be more sparse with starting nanoseq to save memory
+
 ## 20210330.1
 Small adjust of 10X ATACseq masks
 
