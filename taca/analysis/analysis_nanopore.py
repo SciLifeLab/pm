@@ -22,7 +22,7 @@ def find_runs_to_process():
     # These directories were found on the server, not sure which are actually created by the MinKnow software
     # but I'm taking a conservative approach and skipping all of them. None of them are good names for projects
     # anyhow. 'nosync' is created and used by TACA.
-    skip_dirs = ['intermediate', 'nosync', 'queued_reads', 'reads', 'user_scripts']
+    skip_dirs = ['core-dump-db', 'intermediate', 'nosync', 'queued_reads', 'reads', 'user_scripts']
     try:
         found_top_dirs = [os.path.join(nanopore_data_dir, top_dir) for top_dir in os.listdir(nanopore_data_dir)
                           if os.path.isdir(os.path.join(nanopore_data_dir, top_dir))
