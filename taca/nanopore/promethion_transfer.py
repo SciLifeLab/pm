@@ -77,7 +77,7 @@ def write_finished_indicator(run_path):
 def sync_to_storage(run_dir, destination, log_file):
     """Sync the run to storage using rsync. 
     Skip if rsync is already running on the run."""
-    command = ['run-one', 'rsync', '-rv', '--log-file=' + log_file, run_dir, destination]
+    command = ['run-one', 'rsync', '-rvu', '--log-file=' + log_file, run_dir, destination]
     process_handle = subprocess.Popen(command)
     print('Initiated rsync with the following parameters: {}'.format(command))
     
@@ -85,7 +85,7 @@ def final_sync_to_storage(run_dir, destination, archive_dir, log_file):
     """Do a final sync of the run to storage, then archive it. 
     Skip if rsync is already running on the run."""
     print('Performing a final sync of {} to storage'.format(run_dir))
-    command = ['run-one', 'rsync', '-rv', '--log-file=' + log_file, run_dir, destination]
+    command = ['run-one', 'rsync', '-rvu', '--log-file=' + log_file, run_dir, destination]
     process_handle = subprocess.run(command)
     if process_handle.returncode == 0:
         finished_indicator = write_finished_indicator(run_dir)
@@ -105,7 +105,10 @@ def archive_finished_run(run_dir, archive_dir):
     project_id = os.path.basename(top_dir)
     project_archive = os.path.join(archive_dir, project_id)
     if os.path.exists(project_archive):
-        shutil.move(dir_to_move, project_archive)
+        if os.path.exists(os.path.join(project_archive, os.path.basename(dir_to_move))):
+            shutil.move(run_dir, os.path.join(project_archive, os.path.basename(dir_to_move)))
+        else:
+            shutil.move(dir_to_move, project_archive)
     else:
         os.mkdir(project_archive)
         shutil.move(dir_to_move, project_archive)
