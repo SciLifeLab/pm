@@ -22,8 +22,6 @@ def main(args):
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
 
-    logging.info("Starting script...")
-
     run_pattern = re.compile(
         # Run folder name expected as yyyymmdd_HHMM_1A-3H/MN19414_flowCellId_randomHash
         # Flow cell names starting with "CTC" are configuration test cells and should not be included
@@ -31,6 +29,8 @@ def main(args):
         r"^\d{8}_\d{4}_(([1-2][A-H])|(MN19414))_(?!CTC)[A-Za-z0-9]+_[A-Za-z0-9]+$"
     )
     rsync_log = os.path.join(args.source_dir, "rsync_log.txt")
+
+    logging.info("This is helpful, maybe")
 
     logging.info("Parsing instrument position logs...")
     position_logs = parse_position_logs(args.minknow_logs_dir)
