@@ -83,25 +83,27 @@ class StatusdbSession:
 
 
 class ProjectSummaryConnection(StatusdbSession):
-    def __init__(self, config, dbname="projects"):
+    def __init__(self, config):
         super().__init__(config)
-        self.db = self.connection[dbname]
+        self.projects_db = self.connection["projects"]
         self.name_view = {
-            k.key: k.id for k in self.db.view("project/project_name", reduce=False)
+            k.key: k.id
+            for k in self.projects_db.view("project/project_name", reduce=False)
         }
         self.id_view = {
-            k.key: k.id for k in self.db.view("project/project_id", reduce=False)
+            k.key: k.id
+            for k in self.projects_db.view("project/project_id", reduce=False)
         }
 
 
 class FlowcellRunMetricsConnection(StatusdbSession):
-    def __init__(self, config, dbname="flowcells"):
+    def __init__(self, config):
         super().__init__(config)
-        self.db = self.connection[dbname]
+        self.flowcells_db = self.connection["flowcells"]
         self.name_view = {k.key: k.id for k in self.db.view("names/name", reduce=False)}
         self.proj_list = {
             k.key: k.value
-            for k in self.db.view("names/project_ids_list", reduce=False)
+            for k in self.flowcells_db.view("names/project_ids_list", reduce=False)
             if k.key
         }
 
@@ -109,31 +111,33 @@ class FlowcellRunMetricsConnection(StatusdbSession):
 class X_FlowcellRunMetricsConnection(StatusdbSession):
     def __init__(self, config, dbname="x_flowcells"):
         super().__init__(config)
-        self.db = self.connection[dbname]
-        self.name_view = {k.key: k.id for k in self.db.view("names/name", reduce=False)}
+        self.x_flowcells_db = self.connection["x_flowcells"]
+        self.name_view = {
+            k.key: k.id for k in self.x_flowcells_db.view("names/name", reduce=False)
+        }
         self.proj_list = {
             k.key: k.value
-            for k in self.db.view("names/project_ids_list", reduce=False)
+            for k in self.x_flowcells_db.view("names/project_ids_list", reduce=False)
             if k.key
         }
 
 
 class NanoporeRunsConnection(StatusdbSession):
-    def __init__(self, config, dbname="nanopore_runs"):
+    def __init__(self, config):
         super().__init__(config)
-        self.db = self.connection[dbname]
+        self.nanopore_runs_db = self.connection["nanopore_runs"]
 
     def check_run_exists(self, ont_run) -> bool:
-        view_names = self.db.view("names/name")
+        view_names = self.nanopore_runs_db.view("names/name")
         if len(view_names[ont_run.run_name].rows) > 0:
             return True
         else:
             return False
 
     def check_run_status(self, ont_run) -> str:
-        view_all_stats = self.db.view("names/name")
+        view_all_stats = self.nanopore_runs_db.view("names/name")
         doc_id = view_all_stats[ont_run.run_name].rows[0].id
-        return self.db[doc_id]["run_status"]
+        return self.nanopore_runs_db[doc_id]["run_status"]
 
     def create_ongoing_run(
         self, ont_run, run_path_file: str, pore_count_history_file: str
@@ -151,19 +155,19 @@ class NanoporeRunsConnection(StatusdbSession):
             "pore_count_history": pore_counts,
         }
 
-        new_doc_id, new_doc_rev = self.db.save(new_doc)
+        new_doc_id, new_doc_rev = self.nanopore_runs_db.save(new_doc)
         logger.info(
             f"New database entry created: {ont_run.run_name}, id {new_doc_id}, rev {new_doc_rev}"
         )
 
     def finish_ongoing_run(self, ont_run, dict_json: dict):
-        view_names = self.db.view("names/name")
+        view_names = self.nanopore_runs_db.view("names/name")
         doc_id = view_names[ont_run.run_name].rows[0].id
-        doc = self.db[doc_id]
+        doc = self.nanopore_runs_db[doc_id]
 
         doc.update(dict_json)
         doc["run_status"] = "finished"
-        self.db[doc.id] = doc
+        self.nanopore_runs_db[doc.id] = doc
 
 
 def update_doc(db, obj, over_write_db_entry=False):
