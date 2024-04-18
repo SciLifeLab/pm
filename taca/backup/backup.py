@@ -265,12 +265,14 @@ class backup_utils:
                 run_date = run_vals[0]
             run_fc = f"{run_date}_{run_vals[-1]}"
             couch_connection = statusdb.StatusdbSession(self.couch_info).connection
-            db = couch_connection[self.couch_info["db"]]
-            fc_names = {e.key: e.id for e in db.view("names/name", reduce=False)}
+            x_flowcells_db = couch_connection[self.couch_info["db"]]
+            fc_names = {
+                e.key: e.id for e in x_flowcells_db.view("names/name", reduce=False)
+            }
             d_id = fc_names[run_fc]
-            doc = db.get(d_id)
+            doc = x_flowcells_db.get(d_id)
             doc["pdc_archived"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            db.save(doc)
+            x_flowcells_db.save(doc)
             logger.info(
                 f'Logged "pdc_archived" timestamp for fc {run} in statusdb doc "{d_id}"'
             )
