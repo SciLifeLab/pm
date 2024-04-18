@@ -1,7 +1,8 @@
 # TACA Version Log
 
 ## 20240418.1
-Removed dbname option from classes where it was not used. Renamed StatusDB database variables to attempt to standardise them.
+
+Removed dbname option from classes where it was not used. Renamed StatusDB database variables to attempt to standardize them.
 
 ## 20240410.1
 
