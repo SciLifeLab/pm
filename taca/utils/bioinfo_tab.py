@@ -55,8 +55,8 @@ def update_statusdb(run_dir):
     statusdb_conf = CONFIG.get("statusdb")
     couch_connection = statusdb.StatusdbSession(statusdb_conf).connection
     valueskey = datetime.datetime.now().isoformat()
-    db = couch_connection["bioinfo_analysis"]
-    view = db.view("latest_data/sample_id")
+    bioinfo_db = couch_connection["bioinfo_analysis"]
+    view = bioinfo_db.view("latest_data/sample_id")
     # Construction and sending of individual records, if samplesheet is incorrectly formatted the loop is skipped
     if project_info:
         for flowcell in project_info:
@@ -87,8 +87,8 @@ def update_statusdb(run_dir):
                         if len(view[[project, run_id, lane, sample]].rows) >= 1:
                             remote_id = view[[project, run_id, lane, sample]].rows[0].id
                             lane = str(lane)
-                            remote_doc = db[remote_id]["values"]
-                            remote_status = db[remote_id]["status"]
+                            remote_doc = bioinfo_db[remote_id]["values"]
+                            remote_status = bioinfo_db[remote_id]["status"]
                             # Only updates the listed statuses
                             if (
                                 remote_status
@@ -110,16 +110,16 @@ def update_statusdb(run_dir):
                                     )
                                 )
                                 # Update record cluster
-                                obj["_rev"] = db[remote_id].rev
+                                obj["_rev"] = bioinfo_db[remote_id].rev
                                 obj["_id"] = remote_id
-                                db.save(obj)
+                                bioinfo_db.save(obj)
                         # Creates new entry
                         else:
                             logger.info(
                                 f"Creating {run_id} {project} {flowcell} {lane} {sample} as {sample_status}"
                             )
                             # Creates record
-                            db.save(obj)
+                            bioinfo_db.save(obj)
                         # Sets FC error flag
                         if project_info[flowcell].value is not None:
                             if (
