@@ -1,5 +1,8 @@
 # TACA Version Log
 
+## 20240418.1
+Removed dbname option from classes where it was not used. Renamed StatusDB database variables to attempt to standardise them.
+
 ## 20240410.1
 
 Expand test coverage by starting and checking demultiplexing for a NovaSeqXPlus run.
