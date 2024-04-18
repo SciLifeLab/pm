@@ -110,7 +110,7 @@ def _upload_to_statusdb(run):
     """
     couch_conf = CONFIG["statusdb"]
     couch_connection = statusdb.StatusdbSession(couch_conf).connection
-    db = couch_connection[couch_conf["xten_db"]]
+    x_flowcells_db = couch_connection[couch_conf["xten_db"]]
     parser = run.runParserObj
     # Check if I have NoIndex lanes
     for element in parser.obj["samplesheet_csv"]:
@@ -155,7 +155,7 @@ def _upload_to_statusdb(run):
         parser.obj["DemultiplexConfig"] = {
             "Setup": {"Software": run.CONFIG.get("bcl2fastq", {})}
         }
-    statusdb.update_doc(db, parser.obj, over_write_db_entry=True)
+    statusdb.update_doc(x_flowcells_db, parser.obj, over_write_db_entry=True)
 
 
 def transfer_run(run_dir, software):
