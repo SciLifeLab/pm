@@ -214,11 +214,11 @@ def run_is_demuxed(run, couch_info=None, seq_run_type=None):
         run_name = f"{run_date}_{run_fc}"
         try:
             couch_connection = statusdb.StatusdbSession(couch_info).connection
-            fc_db = couch_connection[couch_info["xten_db"]]
-            for fc in fc_db.view("names/name", reduce=False, descending=True):
+            x_flowcells_db = couch_connection[couch_info["xten_db"]]
+            for fc in x_flowcells_db.view("names/name", reduce=False, descending=True):
                 if fc.key != run_name:
                     continue
-                fc_doc = fc_db.get(fc.id)
+                fc_doc = x_flowcells_db.get(fc.id)
                 if not fc_doc or not fc_doc.get("illumina", {}).get(
                     "Demultiplex_Stats", {}
                 ):
