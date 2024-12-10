@@ -1,0 +1,20 @@
+name: PR Label Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  validate-labels:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Validate PR labels
+        uses: actions-ecosystem/action-label-check@v1
+        with:
+          labels: |
+            validation
+            no validation
