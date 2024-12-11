@@ -13,7 +13,7 @@ from taca.illumina.MiSeq_Runs import MiSeq_Run
 from taca.illumina.NextSeq_Runs import NextSeq_Run
 from taca.illumina.NovaSeq_Runs import NovaSeq_Run
 from taca.illumina.NovaSeqXPlus_Runs import NovaSeqXPlus_Run
-from taca.utils import statusdb
+from taca.utils import misc, statusdb
 from taca.utils.config import CONFIG
 from taca.utils.transfer import RsyncAgent
 
@@ -514,20 +514,33 @@ def run_preprocessing(run, software):
             _process(runObj)
     else:
         data_dirs = CONFIG.get("analysis").get("data_dirs")
+        mail_recipients = CONFIG.get("mail", {}).get("recipients")
         for data_dir in data_dirs:
             # Run folder looks like DATE_*_*_*, the last section is the FC name.
             runs = glob.glob(os.path.join(data_dir, "[1-9]*_*_*_*"))
             for _run in runs:
-                runObj = get_runObj(_run, software)
-                if not runObj:
+                try:
+                    runObj = get_runObj(_run, software)
+                except:
+                    # This might throw and exception e.g. if samplesheet is missing.
+                    # It is better to continue processing other runs
                     logger.warning(
-                        f"Unrecognized instrument type or incorrect run folder {run}"
+                        f"There was an error setting up a run object for {_run}"
                     )
+                    if mail_recipients:
+                        subject = f"Error setting up a run object for {_run}"
+                        message = f"""There was an error setting up a run object for {_run}. It is possible that the sample sheet is missing."""
+                        misc.send_mail(subject, message, mail_recipients)
+                    pass
                 else:
                     try:
                         _process(runObj)
                     except:
                         # This function might throw and exception,
                         # it is better to continue processing other runs
-                        logger.warning(f"There was an error processing the run {run}")
+                        logger.warning(f"There was an error processing the run {_run}")
+                        if mail_recipients:
+                            subject = f"Error processing {_run}"
+                            message = f"""There was an error processing {_run}. Please check the TACA log file on preproc for more information."""
+                            misc.send_mail(subject, message, mail_recipients)
                         pass
