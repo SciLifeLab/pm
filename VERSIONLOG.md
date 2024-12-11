@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20241211.1
+
+Email user instead of craching if unable to create Illumina runobject
+
 ## 20241210.4
 
 Change server_status nas to update statusdb by default
