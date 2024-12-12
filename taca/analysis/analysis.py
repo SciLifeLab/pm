@@ -522,7 +522,7 @@ def run_preprocessing(run, software):
                 try:
                     runObj = get_runObj(_run, software)
                 except:
-                    # This might throw and exception e.g. if samplesheet is missing.
+                    # This might throw an exception e.g. if the samplesheet is missing.
                     # It is better to continue processing other runs
                     logger.warning(
                         f"There was an error setting up a run object for {_run}"
