@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20241212.2
+
+Fix for ONT demultiplexing status in bioinfo deliveries script
+
 ## 20241212.1
 
 Add ONT instrument data to bioinfo_tab
