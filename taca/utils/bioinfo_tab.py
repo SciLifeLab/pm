@@ -8,6 +8,7 @@ from collections import OrderedDict, defaultdict
 from flowcell_parser.classes import RunParametersParser, SampleSheetParser
 
 from taca.element.Aviti_Runs import Aviti_Run
+from taca.nanopore.ONT_run_classes import ONT_RUN_PATTERN, ONT_run
 from taca.utils import statusdb
 from taca.utils.config import CONFIG
 from taca.utils.misc import send_mail
@@ -47,6 +48,14 @@ def collect_runs():
                                 continue
                             logger.info(f"Working on {run_dir}")
                             update_statusdb(run_dir, inst_brand)
+                        elif inst_brand == "ont":
+                            # Skip archived, no_backup, nosync and qc folders
+                            if re.match(
+                                ONT_RUN_PATTERN,
+                                os.path.basename(os.path.abspath(run_dir)),
+                            ):
+                                logger.info(f"Working on {run_dir}")
+                                update_statusdb(run_dir, inst_brand)
 
                 nosync_data_dir = os.path.join(data_dir, "nosync")
                 potential_nosync_run_dirs = glob.glob(
@@ -59,7 +68,7 @@ def collect_runs():
                             and illumina_rundir_re.match(
                                 os.path.basename(os.path.abspath(run_dir))
                             )
-                        ) or inst_brand == "element":
+                        ) or (inst_brand == "element" or inst_brand == "ont"):
                             # Skip archived dirs
                             if run_dir == os.path.join(nosync_data_dir, "archived"):
                                 continue
@@ -79,6 +88,15 @@ def update_statusdb(run_dir, inst_brand):
             # Logger in Aviti_Run.parse_run_parameters() will print the warning
             # WARNING - Run parameters file not found for ElementRun(<run_dir>), might not be ready yet
             return
+    elif inst_brand == "ont":
+        run_dir = os.path.abspath(run_dir)
+        try:
+            ont_run = ONT_run(run_dir)
+        except AssertionError as e:
+            logger.error(f"ONT Run folder error: {e}")
+            return
+
+        run_id = ont_run.run_name
 
     statusdb_conf = CONFIG.get("statusdb")
     couch_connection = statusdb.StatusdbSession(statusdb_conf).connection
@@ -91,6 +109,8 @@ def update_statusdb(run_dir, inst_brand):
         project_info = get_ss_projects_illumina(run_dir)
     elif inst_brand == "element":
         project_info = get_ss_projects_element(aviti_run)
+    elif inst_brand == "ont":
+        project_info = get_ss_projects_ont(ont_run, couch_connection)
     # Construction and sending of individual records, if samplesheet is incorrectly formatted the loop is skipped
     if project_info:
         for flowcell in project_info:
@@ -103,6 +123,8 @@ def update_statusdb(run_dir, inst_brand):
                             sample_status = get_status(run_dir)
                         elif inst_brand == "element":
                             sample_status = get_status_element(aviti_run)
+                        elif inst_brand == "ont":
+                            sample_status = get_status_ont(ont_run)
                         project_info[flowcell][lane][sample].value = sample_status
                         obj = {
                             "run_id": run_id,
@@ -232,6 +254,46 @@ def get_status_element(aviti_run):
     elif not sequencing_done:
         status = "Sequencing"
     return status
+
+
+def get_status_ont(ont_run):
+    """Gets status of a ONT sample run, based on flowcell info."""
+    # Default state, should never occur
+    status = "ERROR"
+    run_status = ont_run.db.check_run_status(ont_run)
+
+    if run_status in ["finished"]:
+        status = "New"
+    elif run_status in ["ongoing"]:
+        status = "Sequencing"
+
+    return status
+
+
+def get_ss_projects_ont(ont_run, couch_connection):
+    """Fetches project, FC, lane & sample (sample-run) status for a given folder for ONT runs"""
+    proj_tree = Tree()
+    flowcell_id = ont_run.run_name
+    flowcell_info = (
+        couch_connection["nanopore_runs"].view("info/lims")[flowcell_id].rows[0]
+    )
+    if (
+        flowcell_info.value
+        and flowcell_info.value.get("loading", [])
+        and "sample_data" in flowcell_info.value["loading"][-1]
+    ):
+        samples = flowcell_info.value["loading"][-1]["sample_data"]
+        for sample_dict in samples:
+            sample_id = sample_dict["sample_name"]
+            project = sample_id.split("_")[0]
+            # Use default lane of 0 for ONT
+            proj_tree[flowcell_id]["0"][sample_id][project]
+
+    if list(proj_tree.keys()) == []:
+        logger.info(
+            f"There was no data in StatusDB for the ONT run, CHECK {flowcell_id}"
+        )
+    return proj_tree
 
 
 def get_ss_projects_element(aviti_run):

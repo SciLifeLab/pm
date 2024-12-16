@@ -135,28 +135,6 @@ def test_main_ignore_CTC(setup_test_fixture):
         mock_dump_path.assert_not_called()
 
 
-def test_main_ignore_col3(setup_test_fixture):
-    """Check so that runs on column 3 (set aside for Clinical Genomics as of december 2023)
-    are not picked up.
-    """
-
-    # Run fixture
-    args, tmp, file_paths = setup_test_fixture
-
-    # Setup run
-    run_path = (
-        f"{args.source_dir}/experiment/sample/{DUMMY_RUN_NAME.replace('MN19414', '3A')}"
-    )
-    os.makedirs(run_path)
-
-    with patch("taca.nanopore.instrument_transfer.dump_path") as mock_dump_path:
-        # Start testing
-        instrument_transfer.main(args)
-
-        # Check dump_path was not called
-        mock_dump_path.assert_not_called()
-
-
 @pytest.mark.parametrize(
     "finished, qc", [(True, True), (True, False), (False, True), (False, False)]
 )

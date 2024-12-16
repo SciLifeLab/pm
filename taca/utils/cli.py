@@ -14,9 +14,15 @@ def bioinfo_deliveries():
 # bioinfo subcommands
 @bioinfo_deliveries.command()
 @click.argument("rundir")
-def updaterun(rundir):
+@click.option(
+    "-i",
+    "--inst_type",
+    type=click.Choice(["illumina", "element", "ont"]),
+    required=True,
+)
+def updaterun(rundir, inst_type):
     """Saves the bioinfo data to statusdb."""
-    bt.update_statusdb(rundir)
+    bt.update_statusdb(rundir, inst_brand=inst_type)
 
 
 @bioinfo_deliveries.command()

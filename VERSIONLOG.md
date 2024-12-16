@@ -1,8 +1,20 @@
 # TACA Version Log
 
-## 20241211.1
+## 20241216.1
 
 Email user instead of craching if unable to create Illumina runobject
+
+## 20241212.2
+
+Fix for ONT demultiplexing status in bioinfo deliveries script
+
+## 20241212.1
+
+Add ONT instrument data to bioinfo_tab
+
+## 20241211.1
+
+No longer reserve PromethION column 3 for Clinical Genomics.
 
 ## 20241210.4
 

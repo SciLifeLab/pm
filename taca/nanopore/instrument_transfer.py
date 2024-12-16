@@ -12,10 +12,9 @@ from datetime import datetime as dt
 from glob import glob
 
 RUN_PATTERN = re.compile(
-    # Run folder name expected as yyyymmdd_HHMM_1A-3H/MN19414_flowCellId_randomHash
+    # Run folder name expected as yyyymmdd_HHMM_positionOrInstrument_flowCellId_randomHash
     # Flow cell names starting with "CTC" are configuration test cells and should not be included
-    # As of december 2023, the third column (3A-3H) is excluded, because it will be used by Clinical Genomics
-    r"^\d{8}_\d{4}_(([1-2][A-H])|(MN19414))_(?!CTC)[A-Za-z0-9]+_[A-Za-z0-9]+$"
+    r"^\d{8}_\d{4}_(([1-3][A-H])|(MN19414))_(?!CTC)[A-Za-z0-9]+_[A-Za-z0-9]+$"
 )
 
 
