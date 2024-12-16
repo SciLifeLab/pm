@@ -18,6 +18,18 @@ RUN_PATTERN = re.compile(
 )
 
 
+def untested_function():
+    # TODO remove
+    print("UH OH! This function is untested! Sure hope someone would annotate it!")
+    if False is True:
+        print("This line will never be executed.")
+    return "I'm untested!"
+
+
+# TODO remove
+untested_function_return = untested_function()
+
+
 def main(args):
     """Find ONT runs and transfer them to storage.
     Archives the run when the transfer is complete."""
