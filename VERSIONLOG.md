@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20241216.1
+
+Email user instead of craching if unable to create Illumina runobject
+
 ## 20241212.2
 
 Fix for ONT demultiplexing status in bioinfo deliveries script
