@@ -353,6 +353,15 @@ class ONT_run:
     def toulligqc_report(self):
         """Generate a QC report for the run using ToulligQC and publish it to GenStat."""
 
+        report_dir_name = "toulligqc_report"
+
+        # Do not run this function if it's output dir exists in the run dir
+        if os.path.exists(f"{self.run_abspath}/{report_dir_name}"):
+            logging.info(
+                f"{self.run_name}: ToulligQC report dir already exists, skipping."
+            )
+            return None
+
         # Get sequencing summary file
         glob_summary = glob.glob(f"{self.run_abspath}/sequencing_summary*.txt")
         assert len(glob_summary) == 1, f"Found {len(glob_summary)} summary files"
@@ -412,7 +421,7 @@ class ONT_run:
             "--sequencing-summary-source": summary,
             f"--{raw_data_format}-source": raw_data_path,
             "--output-directory": self.run_abspath,
-            "--report-name": "toulligqc_report",
+            "--report-name": report_dir_name,
         }
         if barcode_dirs:
             command_args["--barcoding"] = ""
@@ -443,7 +452,7 @@ class ONT_run:
             f"{self.run_name}: Transferring ToulligQC report to ngi-internal..."
         )
         # Transfer the ToulligQC .html report file to ngi-internal, renaming it to the full run ID. Requires password-free SSH access.
-        report_src_path = self.get_file("/toulligqc_report/report.html")
+        report_src_path = self.get_file(f"/{report_dir_name}/report.html")
         report_dest_path = os.path.join(
             self.toulligqc_reports_dir,
             f"report_{self.run_name}.html",

@@ -2,7 +2,11 @@
 
 ## 20241216.1
 
-Email user instead of craching if unable to create Illumina runobject
+Do not run ToulligQC if its output directory can be found.
+
+## 20241216.1
+
+Email user instead of crashing if unable to create Illumina runobject
 
 ## 20241212.2
 
