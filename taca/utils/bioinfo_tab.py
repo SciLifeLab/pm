@@ -260,7 +260,7 @@ def get_status_ont(ont_run):
     """Gets status of a ONT sample run, based on flowcell info."""
     # Default state, should never occur
     status = "ERROR"
-    run_status = ont_run.get_demultiplexing_status()
+    run_status = ont_run.db.check_run_status(ont_run)
 
     if run_status in ["finished"]:
         status = "New"

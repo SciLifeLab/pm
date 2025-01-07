@@ -1,8 +1,20 @@
 # TACA Version Log
 
-## 20241212.2
+## 20250107.1
 
 Replace PR labels action
+
+## 20241216.1
+
+Do not run ToulligQC if its output directory can be found.
+
+## 20241216.1
+
+Email user instead of crashing if unable to create Illumina runobject
+
+## 20241212.2
+
+Fix for ONT demultiplexing status in bioinfo deliveries script
 
 ## 20241212.1
 

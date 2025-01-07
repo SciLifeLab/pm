@@ -221,10 +221,11 @@ class Run:
         if os.path.exists(ssname):
             return ssname
         else:
+            logger.warning(
+                f"Not able to find samplesheet {self.flowcell_id}.csv in {self.CONFIG['samplesheets_dir']}"
+            )
             raise RuntimeError(
-                "not able to find samplesheet {}.csv in {}".format(
-                    self.flowcell_id, self.CONFIG["samplesheets_dir"]
-                )
+                f"Not able to find samplesheet {self.flowcell_id}.csv in {self.CONFIG['samplesheets_dir']}"
             )
 
     def _is_demultiplexing_done(self):
