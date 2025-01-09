@@ -4,7 +4,7 @@ on:
     types: [opened, synchronize, labeled, unlabeled]
 
 jobs:
-  check-pr_label:
+  check_pr_label:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR
@@ -13,7 +13,7 @@ jobs:
           fetch-depth: 0 # Fetch all history for all branches and tags
 
       - name: Check if the PR contains the label validation or no validation
-        id: prlabel_check
+        id: check_pr_label
         if: |
           ! contains( github.event.pull_request.labels.*.name, 'validation') &&  ! contains( github.event.pull_request.labels.*.name, 'no validation')
         run: |
