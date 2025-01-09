@@ -1,5 +1,9 @@
 # TACA Version Log
 
+## 20250107.1
+
+Replace PR labels action
+
 ## 20241216.1
 
 Do not run ToulligQC if its output directory can be found.

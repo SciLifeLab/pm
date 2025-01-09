@@ -1,0 +1,21 @@
+name: Check Label on PR
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
+
+jobs:
+  check_pr_label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for all branches and tags
+
+      - name: Check if the PR contains the label validation or no validation
+        id: check_pr_label
+        if: |
+          ! contains( github.event.pull_request.labels.*.name, 'validation') &&  ! contains( github.event.pull_request.labels.*.name, 'no validation')
+        run: |
+          echo "Neither 'validation' nor 'no validation' labels are present."
+          exit 1 # Exit with a failure
